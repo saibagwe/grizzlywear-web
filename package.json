@@ -1,0 +1,22 @@
+{
+  "name": "grizzlywear",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grizzlywear — Fashion E-Commerce Platform",
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:web": "pnpm --filter @grizzlywear/web dev",
+    "dev:backend": "pnpm --filter @grizzlywear/backend dev",
+    "dev:ai": "pnpm --filter @grizzlywear/ai-service dev",
+    "build": "pnpm --parallel -r run build",
+    "build:web": "pnpm --filter @grizzlywear/web build",
+    "build:backend": "pnpm --filter @grizzlywear/backend build",
+    "lint": "pnpm --parallel -r run lint",
+    "typecheck": "pnpm --parallel -r run typecheck",
+    "clean": "pnpm --parallel -r run clean"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
