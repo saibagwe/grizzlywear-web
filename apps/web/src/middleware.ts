@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-// Routes that require authentication
-const protectedRoutes = ['/account', '/checkout'];
-
-// Routes restricted to admin users
-const adminRoutes = ['/admin'];
-
-export function middleware(request: NextRequest) {
+export function middleware() {
   // Bypassed for prototyping
   return NextResponse.next();
 }

@@ -5,12 +5,16 @@ import Providers from '@/components/Providers';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SmoothScrolling from '@/components/SmoothScrolling';
+import PageTransition from '@/components/PageTransition';
+import ChatWidgetWrapper from '@/components/ui/ChatWidgetWrapper';
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
   display: 'swap',
 });
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
@@ -47,15 +51,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased bg-white text-black min-h-screen">
+      <body className="font-sans antialiased bg-white text-black min-h-screen relative">
         <SmoothScrolling>
           <Providers>
             <Navbar />
-            <main>{children}</main>
+            <PageTransition>
+              <main>{children}</main>
+            </PageTransition>
             <Footer />
+            <ChatWidgetWrapper />
           </Providers>
         </SmoothScrolling>
       </body>
     </html>
   );
 }
+
