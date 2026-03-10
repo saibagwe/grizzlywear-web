@@ -82,9 +82,9 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 'hoodies',
     price: 3499,
     images: [
-      'https://images.unsplash.com/photo-1556821840-0f3bdc42323f?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1000&auto=format&fit=crop'
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161576/CSWM_Black2_yic9aq.jpg',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161710/CSWM_Black_4_ddjw6k.jpg',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161710/CSWM_navy2_yedhi2.jpg'
     ],
     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
     colors: [{ name: 'Onyx Black', hex: '#111111' }],
@@ -111,7 +111,7 @@ export const MOCK_PRODUCTS: Product[] = [
     comparePrice: 4999,
     discount: 14,
     images: [
-      'https://images.unsplash.com/photo-1624378439575-d1ead6bb2ac7?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773162813/2150264165_yifszk.jpg',
       'https://images.unsplash.com/photo-1542272201-b1ca555f8505?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -138,7 +138,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 't-shirts',
     price: 1899,
     images: [
-      'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161749/white_oversized_4_kvbpsc.jpg',
       'https://images.unsplash.com/photo-1562157873-818bc0726f68?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1529374255404-311a2a4f1fd9?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -221,7 +221,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 'hoodies',
     price: 3699,
     images: [
-      'https://images.unsplash.com/photo-1509506489701-df2bb62a5b28?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161732/Jbear4_koppnn.jpg',
       'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1556821840-0f3bdc42323f?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -250,7 +250,7 @@ export const MOCK_PRODUCTS: Product[] = [
     comparePrice: 3999,
     discount: 17,
     images: [
-      'https://images.unsplash.com/photo-1552902865-b72c031fab52?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773163538/Screenshot_from_2026-03-10_22-55-25_g8judj.png',
       'https://images.unsplash.com/photo-1517409259461-840be6d52ab4?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1542272201-b1ca555f8505?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -277,7 +277,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 't-shirts',
     price: 1999,
     images: [
-      'https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161718/Flared_white_oversized_2_b3ro8i.jpg',
       'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1529374255404-311a2a4f1fd9?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -333,7 +333,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 'wide-leg pants',
     price: 2899,
     images: [
-      'https://images.unsplash.com/photo-1583496661160-c25febf61e2a?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161555/571011290_17952121209015189_3483500787661898313_n_twjmm4.jpg',
       'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -389,7 +389,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 'wide-leg pants',
     price: 3199,
     images: [
-      'https://images.unsplash.com/photo-1584281721590-db05d21cb64b?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773163253/2150773390_hcuiwp.jpg',
       'https://images.unsplash.com/photo-1509631179647-0c5000642f15?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -555,7 +555,7 @@ export const MOCK_PRODUCTS: Product[] = [
     subcategory: 'bags',
     price: 1299,
     images: [
-      'https://images.unsplash.com/photo-1597633244018-b2a6080709b6?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773163439/Screenshot_from_2026-03-10_22-53-40_gqlzgh.png',
       'https://images.unsplash.com/photo-1544816155-12df9643f363?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1000&auto=format&fit=crop'
     ],
@@ -584,7 +584,7 @@ export const MOCK_PRODUCTS: Product[] = [
     comparePrice: 999,
     discount: 20,
     images: [
-      'https://images.unsplash.com/photo-1534360341776-8f37081734bc?q=80&w=1000&auto=format&fit=crop',
+      'https://res.cloudinary.com/dstmv07tf/image/upload/v1773163363/Screenshot_from_2026-03-10_22-52-20_hkmvyb.png',
       'https://images.unsplash.com/photo-1576426863848-c21f53c60b19?q=80&w=1000&auto=format&fit=crop',
       'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1000&auto=format&fit=crop'
     ],
