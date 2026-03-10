@@ -9,16 +9,16 @@ const footerLinks = {
   ],
   help: [
     { href: '/track', label: 'Track Order' },
-    { href: '#', label: 'Returns Policy' },
-    { href: '#', label: 'Size Guide' },
-    { href: '/account/support', label: 'Support' },
-    { href: '/#', label: 'FAQ' },
+    { href: '/returns-policy', label: 'Returns Policy' },
+    { href: '/size-guide', label: 'Size Guide' },
+    { href: '/faq', label: 'FAQ' },
+    { href: '/support', label: 'Support' },
   ],
   company: [
-    { href: '#', label: 'About Us' },
-    { href: '#', label: 'Careers' },
-    { href: '#', label: 'Contact' },
-    { href: '#', label: 'Press' },
+    { href: '/about', label: 'About Us' },
+    { href: '/careers', label: 'Careers' },
+    { href: '/contact', label: 'Contact' },
+    { href: '/press', label: 'Press' },
   ],
 };
 
@@ -38,10 +38,10 @@ export default function Footer() {
             <p className="text-gray-400 text-sm tracking-widest uppercase mb-8">Wear the Wild</p>
             
             <div className="flex gap-6">
-              <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noreferrer" className="text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors underline-offset-4 hover:underline">
+              <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noopener noreferrer" className="text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors underline-offset-4 hover:underline">
                 Instagram
               </a>
-              <a href="https://wa.me/917304967959" target="_blank" rel="noreferrer" className="text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors underline-offset-4 hover:underline">
+              <a href="https://wa.me/917304967959" target="_blank" rel="noopener noreferrer" className="text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors underline-offset-4 hover:underline">
                 WhatsApp
               </a>
             </div>
@@ -71,7 +71,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10 text-xs text-gray-500 uppercase tracking-widest">
-          <p>© {new Date().getFullYear()} Grizzlywear®. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Grizzlywear&reg;. All rights reserved.</p>
           <p>Made in India 🇮🇳</p>
         </div>
 

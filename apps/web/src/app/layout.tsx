@@ -5,8 +5,10 @@ import Providers from '@/components/Providers';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SmoothScrolling from '@/components/SmoothScrolling';
-import PageTransition from '@/components/PageTransition';
+import PageTransitionWrapper from '@/components/PageTransitionWrapper';
+import ScrollToTop from '@/components/ScrollToTop';
 import ChatWidgetWrapper from '@/components/ui/ChatWidgetWrapper';
+import SearchOverlay from '@/components/ui/SearchOverlay';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -54,16 +56,17 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-white text-black min-h-screen relative">
         <SmoothScrolling>
           <Providers>
+            <ScrollToTop />
             <Navbar />
-            <PageTransition>
+            <PageTransitionWrapper>
               <main>{children}</main>
-            </PageTransition>
+            </PageTransitionWrapper>
             <Footer />
             <ChatWidgetWrapper />
+            <SearchOverlay />
           </Providers>
         </SmoothScrolling>
       </body>
     </html>
   );
 }
-
