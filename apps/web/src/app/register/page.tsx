@@ -96,59 +96,25 @@ export default function RegisterPage() {
             <label htmlFor="name" className="block text-xs tracking-wider uppercase text-gray-600 mb-1.5">
               Full Name
             </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="input-field"
-              placeholder="John Doe"
-            />
+            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required className="input-field" placeholder="John Doe" />
           </div>
           <div>
             <label htmlFor="email" className="block text-xs tracking-wider uppercase text-gray-600 mb-1.5">
               Email
             </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="input-field"
-              placeholder="you@example.com"
-            />
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="you@example.com" />
           </div>
           <div>
             <label htmlFor="password" className="block text-xs tracking-wider uppercase text-gray-600 mb-1.5">
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="input-field"
-              placeholder="••••••••"
-            />
+            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="input-field" placeholder="••••••••" />
           </div>
           <div>
             <label htmlFor="confirmPassword" className="block text-xs tracking-wider uppercase text-gray-600 mb-1.5">
               Confirm Password
             </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={6}
-              className="input-field"
-              placeholder="••••••••"
-            />
+            <input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={6} className="input-field" placeholder="••••••••" />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
             {loading ? 'Creating account...' : 'Create Account'}
