@@ -159,10 +159,13 @@ export default function HomePage() {
           </Canvas>
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/90 z-10" />
-        <div className="relative z-20 text-center px-4">
-          <h1 ref={titleRef} className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-extralight text-white tracking-[0.2em] uppercase mb-6 opacity-0">
-            GRIZZLYWEAR
-          </h1>
+        <div className="relative z-20 text-center px-4 flex flex-col items-center">
+          <div ref={titleRef} className="opacity-0 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 mb-6">
+            <Image src="https://res.cloudinary.com/dstmv07tf/image/upload/v1773157679/logo1_be0zr0.png" alt="Grizzlywear Logo" width={140} height={140} className="object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" priority />
+            <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-extralight text-white tracking-[0.2em] uppercase">
+              GRIZZLYWEAR
+            </h1>
+          </div>
           <p ref={subRef} className="text-sm sm:text-base text-gray-300 tracking-[0.3em] uppercase mb-10 opacity-0">
             Wear the Wild
           </p>

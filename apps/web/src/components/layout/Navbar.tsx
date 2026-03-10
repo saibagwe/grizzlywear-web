@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/store/cartStore';
@@ -68,10 +69,11 @@ export default function Navbar() {
             <Link
               href="/"
               className={cn(
-                'font-bold text-xl tracking-[0.3em] uppercase transition-colors text-white',
+                'font-bold text-xl tracking-[0.3em] uppercase transition-colors text-white flex items-center gap-3',
               )}
             >
-              GRIZZLYWEAR
+              <Image src="https://res.cloudinary.com/dstmv07tf/image/upload/v1773157679/logo1_be0zr0.png" alt="Grizzlywear" width={40} height={40} className="object-contain" priority />
+              <span className="hidden sm:inline-block">GRIZZLY</span>
             </Link>
 
             {/* Desktop nav links */}
