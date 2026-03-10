@@ -62,6 +62,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
 
   initialize: () => {
+    const isInit = get().initialized;
+    if (isInit) return () => {}; // Already initialized globally
+
+    set({ initialized: true });
+
     // Cookie sync — keep cookie fresh on token changes
     const unsubToken = onIdTokenChanged(auth, async (user) => {
       if (user) {
@@ -116,7 +121,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isAuthenticated: true,
           isAdmin,
           loading: false,
-          initialized: true,
           user: userToCompat(user, isAdmin),
         });
       } else {
@@ -126,15 +130,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           isAuthenticated: false,
           isAdmin: false,
           loading: false,
-          initialized: true,
           user: null,
         });
       }
     });
 
     return () => {
-      unsubToken();
-      unsubAuth();
+      // Global store listeners should generally remain active across component mounts
+      // We do not unsubscribe here to avoid React StrictMode issues
     };
   },
 

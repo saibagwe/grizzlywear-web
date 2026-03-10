@@ -187,10 +187,17 @@ export async function saveOrderToFirestore(
   const userRef = doc(db, 'users', uid, 'orders', firestoreId);
 
   const { setDoc } = await import('firebase/firestore');
-  await Promise.all([
+  
+  const savePromise = Promise.all([
     setDoc(globalRef, orderData),
     setDoc(userRef, orderData),
   ]);
+
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Firestore saving timed out. Please check your network or Firestore rules.')), 8000);
+  });
+
+  await Promise.race([savePromise, timeoutPromise]);
 
   return orderId;
 }

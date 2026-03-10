@@ -93,6 +93,15 @@ export default function OrderConfirmationPage() {
         gsap.set(path, { strokeDasharray: length, strokeDashoffset: length });
         gsap.to(path, { strokeDashoffset: 0, duration: 1, ease: 'power2.out', delay: 0.2 });
       }
+
+      // Sonar effect
+      const rings = document.querySelectorAll('.radar-ring');
+      if (rings.length > 0) {
+        gsap.fromTo(rings, 
+          { scale: 1, opacity: 0.6 },
+          { scale: 2.5, opacity: 0, duration: 1.5, stagger: 0.4, repeat: -1, ease: 'power1.out', delay: 0.5 }
+        );
+      }
     }
   }, [loading, error]);
 
@@ -158,10 +167,16 @@ export default function OrderConfirmationPage() {
         {/* Header Success Message */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
-            <svg ref={checkRef} width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="32" cy="32" r="31" stroke="black" strokeWidth="2" />
-              <path d="M18 33L27 42L46 22" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <div className="relative isolate w-16 h-16 flex items-center justify-center">
+              {/* Sonar Rings */}
+              <div className="radar-ring absolute w-16 h-16 rounded-full border border-black opacity-0 -z-10 pointer-events-none" />
+              <div className="radar-ring absolute w-16 h-16 rounded-full border border-black opacity-0 -z-10 pointer-events-none" />
+              
+              <svg ref={checkRef} className="relative z-10 bg-white rounded-full" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="31" stroke="black" strokeWidth="2" />
+                <path d="M18 33L27 42L46 22" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
           </div>
           <h1 className="text-3xl sm:text-4xl font-light tracking-tight mb-2 uppercase">Order Confirmed</h1>
           <p className="text-gray-500 uppercase tracking-widest text-xs">Thank you for shopping with Grizzlywear.</p>

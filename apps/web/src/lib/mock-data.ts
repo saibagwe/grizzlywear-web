@@ -76,8 +76,8 @@ export const MOCK_PRODUCTS: Product[] = [
   // --- MEN (8) ---
   {
     id: 'prod-m-01',
-    slug: 'oversized-onyx-hoodie',
-    name: 'Oversized Onyx Hoodie',
+    slug: 'Grizzly Originals',
+    name: 'Grizzly Originals',
     category: 'men',
     subcategory: 'hoodies',
     price: 3499,

@@ -20,7 +20,7 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   
   const totalItems = useCartStore((s) => s.totalItems); // Not a function anymore
   const wishlistCount = useWishlistStore((s) => s.wishlistedIds.length);
@@ -127,7 +127,11 @@ export default function Navbar() {
               </Link>
 
               <div className="relative hidden sm:block">
-                {isAuthenticated ? (
+                {loading ? (
+                  <div className="p-2 transition-colors opacity-50 cursor-wait" aria-label="Loading session">
+                    <User className="w-5 h-5 animate-pulse" />
+                  </div>
+                ) : isAuthenticated ? (
                   <>
                     <button
                       onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -192,7 +196,9 @@ export default function Navbar() {
               
               <hr className="border-white/20 my-4" />
               
-              {!isAuthenticated ? (
+              {loading ? (
+                <div className="text-gray-500 animate-pulse">Checking session...</div>
+              ) : !isAuthenticated ? (
                 <>
                   <Link href="/login" className="text-white hover:text-gray-300">Login</Link>
                   <Link href="/register" className="text-gray-400 hover:text-gray-300">Register</Link>
