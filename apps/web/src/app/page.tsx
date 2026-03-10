@@ -76,7 +76,7 @@ export default function HomePage() {
     categoryRefs.current.forEach((el) => {
       if (!el) return;
       const img = el.querySelector('.cat-img');
-      gsap.fromTo(img, 
+      gsap.fromTo(img,
         { scale: 1.2, yPercent: -10 },
         {
           scale: 1,
@@ -95,9 +95,9 @@ export default function HomePage() {
     // 4. New Arrivals Stagger
     const arrivals = newArrivalsRef.current?.querySelectorAll('.product-card');
     if (arrivals) {
-      gsap.fromTo(arrivals, 
+      gsap.fromTo(arrivals,
         { y: 50, opacity: 0 },
-        { 
+        {
           y: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: 'power3.out',
           scrollTrigger: { trigger: newArrivalsRef.current, start: 'top 80%' }
         }
@@ -108,13 +108,15 @@ export default function HomePage() {
     if (editLeftRef.current && editRightRef.current) {
       gsap.fromTo(editLeftRef.current,
         { x: -50, opacity: 0 },
-        { x: 0, opacity: 1, duration: 1, ease: 'power3.out',
+        {
+          x: 0, opacity: 1, duration: 1, ease: 'power3.out',
           scrollTrigger: { trigger: editLeftRef.current, start: 'top 80%' }
         }
       );
       gsap.fromTo(editRightRef.current,
         { x: 50, opacity: 0 },
-        { x: 0, opacity: 1, duration: 1, ease: 'power3.out', delay: 0.2,
+        {
+          x: 0, opacity: 1, duration: 1, ease: 'power3.out', delay: 0.2,
           scrollTrigger: { trigger: editLeftRef.current, start: 'top 80%' }
         }
       );
@@ -125,7 +127,8 @@ export default function HomePage() {
     if (socials) {
       gsap.fromTo(socials,
         { y: 50, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out',
+        {
+          y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out',
           scrollTrigger: { trigger: socialRef.current, start: 'top 85%' }
         }
       );
@@ -135,7 +138,8 @@ export default function HomePage() {
     if (newsletterRef.current) {
       gsap.fromTo(newsletterRef.current,
         { y: 30, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out',
+        {
+          y: 0, opacity: 1, duration: 0.8, ease: 'power2.out',
           scrollTrigger: { trigger: newsletterRef.current, start: 'top 85%' }
         }
       );
@@ -248,7 +252,7 @@ export default function HomePage() {
           {[
             { title: 'Men', count: '48 STYLES', href: '/shop?category=men', img: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?q=80&w=1000&auto=format&fit=crop' },
             { title: 'Women', count: '42 STYLES', href: '/shop?category=women', img: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?q=80&w=1000&auto=format&fit=crop' },
-            { title: 'Accessories', count: '12 STYLES', href: '/shop?category=accessories', img: 'https://images.unsplash.com/photo-1556821840-0f3bdc42323f?q=80&w=1000&auto=format&fit=crop' },
+            { title: 'Accessories', count: '12 STYLES', href: '/shop?category=accessories', img: 'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161780/2149366089_wr2trp.jpg' },
           ].map((cat, i) => (
             <Link
               key={cat.title}
@@ -281,7 +285,7 @@ export default function HomePage() {
             {/* Left Column - Copy */}
             <div ref={editLeftRef} className="w-full lg:w-1/3 opacity-0">
               <h2 className="text-xs tracking-[0.3em] text-gray-500 uppercase font-medium mb-4">Curated Collection</h2>
-              <h3 className="text-5xl sm:text-6xl md:text-7xl font-light uppercase leading-[0.9] mb-8">The<br/>Grizz<br/>Edit.</h3>
+              <h3 className="text-5xl sm:text-6xl md:text-7xl font-light uppercase leading-[0.9] mb-8">The<br />Grizz<br />Edit.</h3>
               <p className="text-gray-400 text-sm sm:text-base leading-relaxed mb-10 max-w-sm">
                 Curated for the bold. Worn by the fearless. A hand-picked selection of our most disruptive silhouettes and premium heavyweights.
               </p>
@@ -289,7 +293,7 @@ export default function HomePage() {
                 Shop The Edit →
               </Link>
             </div>
-            
+
             {/* Right Column - 2x2 Grid */}
             <div ref={editRightRef} className="w-full lg:w-2/3 opacity-0">
               <div className="grid grid-cols-2 gap-4 lg:gap-8">
@@ -316,7 +320,7 @@ export default function HomePage() {
             Tag us <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noreferrer" className="text-black font-medium hover:underline">@grizzlywear.in</a> for a chance to be featured
           </p>
         </div>
-        
+
         {/* Scrolling or Static Grid of 6 */}
         <div className="flex overflow-x-auto pb-8 snap-x snap-mandatory hide-scrollbar">
           <div className="flex gap-2 px-4 sm:px-8 min-w-max mx-auto">
@@ -360,12 +364,12 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-3xl sm:text-5xl font-light uppercase tracking-widest mb-4">Stay In The Loop</h2>
           <p className="text-sm sm:text-base text-gray-400 mb-10">New drops, exclusive offers, and zero spam. Just Grizzlywear.</p>
-          
+
           <form onSubmit={handleNewsletter} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-            <input 
-              type="email" 
-              required 
-              placeholder="ENTER YOUR EMAIL" 
+            <input
+              type="email"
+              required
+              placeholder="ENTER YOUR EMAIL"
               className="flex-grow bg-transparent border border-white/20 px-6 py-4 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white transition-colors"
             />
             <button type="submit" className="bg-white text-black px-10 py-4 text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors">
