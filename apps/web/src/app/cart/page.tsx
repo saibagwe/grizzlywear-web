@@ -4,15 +4,94 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Minus, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCheckoutStore } from '@/store/checkoutStore';
 import { useCartStore } from '@/store/cartStore';
 
+const DISCOUNT_CODES: Record<string, { type: 'percent' | 'flat'; value: number }> = {
+  'GRIZZ10': { type: 'percent', value: 10 },
+  'SHIP99':  { type: 'flat',    value: 99 },
+  'FIRST15': { type: 'percent', value: 15 },
+};
+
 export default function CartPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const { items, removeItem, updateQuantity, subtotal } = useCartStore();
+  const { setCartSnapshot, setPricing } = useCheckoutStore();
+
+  const [inputCode, setInputCode] = useState('');
+  const [discountCode, setDiscountCode] = useState('');
+  const [discount, setDiscount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Calculate pricing
+  const shippingCharge = subtotal > 0 && subtotal < 5000 ? 99 : 0;
+  
+  // Recalculate discount if cart changes
+  useEffect(() => {
+    if (discountCode) {
+      applyDiscountLogic(discountCode, subtotal);
+    }
+  }, [subtotal, discountCode]);
+
+  const applyDiscountLogic = (code: string, currentSubtotal: number) => {
+    const rule = DISCOUNT_CODES[code];
+    if (!rule) {
+      setDiscount(0);
+      return;
+    }
+    if (rule.type === 'percent') {
+      setDiscount(Math.round(currentSubtotal * rule.value / 100));
+    } else {
+      setDiscount(rule.value);
+    }
+  };
+
+  const handleApplyDiscount = () => {
+    const code = inputCode.trim().toUpperCase();
+    if (DISCOUNT_CODES[code]) {
+      setDiscountCode(code);
+      applyDiscountLogic(code, subtotal);
+      setInputCode('');
+    } else {
+      alert('Invalid discount code');
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setDiscountCode('');
+    setDiscount(0);
+  };
+
+  const total = Math.max(0, subtotal + shippingCharge - discount);
+
+  const handleProceedToCheckout = () => {
+    // 1. Snapshot items
+    const snapshotItems = items.map(item => ({
+      productId: item.product.id,
+      name: item.product.name,
+      size: item.size,
+      color: item.product.colors?.[0]?.name || 'Default',
+      quantity: item.quantity,
+      price: item.product.price,
+      imageUrl: item.product.images[0]
+    }));
+    setCartSnapshot(snapshotItems);
+    // 2. Set pricing
+    setPricing({
+      subtotal,
+      shippingCharge,
+      discount,
+      discountCode,
+      total,
+    });
+    // 3. Navigate
+    router.push('/checkout');
+  };
 
   if (!mounted) return null; // Prevent hydration errors
 
@@ -112,9 +191,39 @@ export default function CartPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 font-normal">Shipping</span>
-                    <span className="text-gray-400 font-normal text-xs uppercase tracking-widest">Calculated at checkout</span>
+                    <span>{shippingCharge === 0 ? 'FREE' : `₹${shippingCharge.toLocaleString('en-IN')}`}</span>
                   </div>
-                  <div className="flex justify-between">
+                  
+                  {/* Discount Code Input */}
+                  <div className="pt-2">
+                    <div className="flex gap-2 mb-2">
+                      <input 
+                        type="text" 
+                        placeholder="Discount code" 
+                        value={inputCode}
+                        onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                        className="w-full border border-gray-200 px-3 py-2 text-sm focus:border-black focus:ring-0 uppercase placeholder:normal-case font-bold"
+                      />
+                      <button 
+                        onClick={handleApplyDiscount}
+                        className="bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                    {discountCode && discount > 0 ? (
+                      <div className="flex justify-between items-center text-green-600 bg-green-50 px-3 py-2 border border-green-100">
+                        <span className="font-bold flex items-center gap-2">
+                          {discountCode} <button onClick={handleRemoveDiscount}><Trash2 size={12} className="hover:text-black" /></button>
+                        </span>
+                        <span>-₹{discount.toLocaleString('en-IN')}</span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-400 uppercase tracking-widest">Try GRIZZ10, FIRST15, or SHIP99</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between pt-2">
                     <span className="text-gray-500 font-normal">Taxes</span>
                     <span className="text-gray-400 font-normal text-xs uppercase tracking-widest">Included</span>
                   </div>
@@ -122,16 +231,16 @@ export default function CartPage() {
                 
                 <div className="flex justify-between font-bold text-lg mb-8">
                   <span className="uppercase tracking-widest">Total</span>
-                  <span>₹{subtotal.toLocaleString('en-IN')}</span>
+                  <span>₹{total.toLocaleString('en-IN')}</span>
                 </div>
                 
-                <Link 
-                  href="/checkout"
+                <button 
+                  onClick={handleProceedToCheckout}
                   className="w-full bg-black text-white px-8 py-5 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-900 transition-all flex items-center justify-center gap-2 group"
                 >
                   Proceed to Checkout
                   <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
+                </button>
 
                 <div className="mt-6 space-y-2">
                   <p className="text-[10px] text-center text-gray-500 uppercase tracking-widest">Secure encrypted checkout</p>

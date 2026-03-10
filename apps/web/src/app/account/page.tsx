@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '@/lib/mock-data';
+import { db } from '@/lib/firebase';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import {
   updateUserProfile,
   getAddresses,
@@ -74,6 +76,10 @@ export default function AccountPage() {
   const [addrErrors, setAddrErrors] = useState<Record<string, string>>({});
   const [addrSaving, setAddrSaving] = useState(false);
 
+  // ── Orders state ──
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
   const uid = firebaseUser?.uid;
   const displayName = profile?.fullName || firebaseUser?.displayName || 'Guest';
   const firstName = displayName.split(' ')[0] || 'there';
@@ -100,7 +106,6 @@ export default function AccountPage() {
       const data = await getAddresses(uid);
       setAddresses(data);
     } catch {
-      // Firestore may not be ready
       setAddresses([]);
     }
     setAddressLoading(false);
@@ -111,6 +116,41 @@ export default function AccountPage() {
       loadAddresses();
     }
   }, [uid, activeTab, loadAddresses]);
+
+  // Load orders
+  const loadOrders = useCallback(async () => {
+    if (!uid) return;
+    setOrdersLoading(true);
+    try {
+      const q = query(
+        collection(db, 'users', uid, 'orders'),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      const data = snap.docs.map(doc => {
+        const d = doc.data();
+        let dateObj = d.createdAt ? d.createdAt.toDate() : new Date();
+        return {
+          id: d.orderId,
+          date: dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+          status: d.status || 'processing',
+          total: d.pricing?.total || 0,
+          items: d.items || [],
+        };
+      });
+      setOrders(data);
+    } catch (err) {
+      console.error("Error loading orders:", err);
+      setOrders([]);
+    }
+    setOrdersLoading(false);
+  }, [uid]);
+
+  useEffect(() => {
+    if (uid && activeTab === 'orders') {
+      loadOrders();
+    }
+  }, [uid, activeTab, loadOrders]);
 
   // Profile form changed?
   const profileChanged = profile
@@ -363,9 +403,32 @@ export default function AccountPage() {
             {activeTab === 'orders' && (
               <div className="animate-in fade-in duration-300">
                 <h2 className="text-lg font-medium mb-6 uppercase tracking-widest border-b border-gray-100 pb-4">Order History</h2>
-                {MOCK_ORDERS.length > 0 ? (
+                
+                {ordersLoading ? (
                   <div className="space-y-6">
-                    {MOCK_ORDERS.map((order) => (
+                    {[1, 2].map((i) => (
+                      <div key={i} className="border border-gray-200">
+                        <div className="bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-4 w-24" />
+                        </div>
+                        <div className="p-6 space-y-4">
+                          <Skeleton className="h-4 w-24" />
+                          <div className="flex gap-4">
+                            <Skeleton className="w-20 h-24" />
+                            <div className="space-y-2 flex-1">
+                              <Skeleton className="h-4 w-1/2" />
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-4 w-24" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : orders.length > 0 ? (
+                  <div className="space-y-6">
+                    {orders.map((order) => (
                       <div key={order.id} className="border border-gray-200">
                         <div className="bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200">
                           <div className="flex gap-8">
@@ -378,8 +441,9 @@ export default function AccountPage() {
                               <p className="text-sm font-medium">₹{order.total.toLocaleString('en-IN')}</p>
                             </div>
                           </div>
-                          <div className="text-left sm:text-right">
+                          <div className="text-left sm:text-right flex flex-col items-start sm:items-end">
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order # {order.id}</p>
+                            <Link href={`/orders/confirmation/${order.id}`} className="text-[10px] font-bold uppercase tracking-widest text-black hover:underline mt-1">View Details</Link>
                           </div>
                         </div>
                         <div className="p-6">
@@ -388,15 +452,15 @@ export default function AccountPage() {
                             <span className="text-sm font-bold uppercase tracking-widest">{order.status}</span>
                           </div>
                           <div className="space-y-6">
-                            {order.items.map((item, idx) => (
-                              <div key={idx} className="flex gap-4">
+                            {order.items.map((item: any, idx: number) => (
+                              <div key={`${order.id}-item-${idx}`} className="flex gap-4">
                                 <div className="relative w-20 h-24 bg-gray-100 flex-shrink-0 border border-gray-200">
-                                  <Image src={item.product.images[0]} alt={item.product.name} fill className="object-cover" sizes="80px" />
+                                  <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="80px" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <Link href={`/shop/${item.product.slug}`} className="text-sm font-medium hover:underline underline-offset-4 line-clamp-1">{item.product.name}</Link>
-                                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} | Qty: {item.quantity}</p>
-                                  <p className="text-sm font-medium mt-2">₹{item.product.price.toLocaleString('en-IN')}</p>
+                                  <Link href={`/shop/${item.productId}`} className="text-sm font-medium hover:underline underline-offset-4 line-clamp-1">{item.name}</Link>
+                                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} • Color: {item.color} | Qty: {item.quantity}</p>
+                                  <p className="text-sm font-medium mt-2">₹{item.price.toLocaleString('en-IN')}</p>
                                 </div>
                               </div>
                             ))}
