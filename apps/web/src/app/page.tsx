@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -11,9 +11,10 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { toast } from 'sonner';
 import { Truck, RotateCcw, ShieldCheck, MessageCircleHeart, Instagram } from 'lucide-react';
-import { MOCK_PRODUCTS } from '@/lib/mock-data';
+import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 
 gsap.registerPlugin(ScrollTrigger);
+
 
 // ----- Three.js Particles (Untouched hero bg) -----
 function ParticleField(props: unknown) {
@@ -49,9 +50,15 @@ export default function HomePage() {
   const categoryRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const newsletterRef = useRef<HTMLDivElement>(null);
 
-  // Derived mock data
-  const newArrivals = MOCK_PRODUCTS.filter(p => p.isNew).slice(0, 4);
-  const featuredEdit = MOCK_PRODUCTS.filter(p => p.isFeatured).slice(0, 4);
+  // Real-time Firestore data
+  const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
+  const newArrivals = allProducts.filter((p: FirestoreProduct) => p.isNew).slice(0, 4);
+  const featuredEdit = allProducts.filter((p: FirestoreProduct) => p.isFeatured).slice(0, 4);
+
+  useEffect(() => {
+    const unsub = subscribeToProducts((prods) => setAllProducts(prods));
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     // 1. Hero Reveal (Untouched)
@@ -216,13 +223,13 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-12">
-            {newArrivals.map((p) => (
+            {newArrivals.length === 0 ? (
+              <div className="col-span-4 py-12 text-center text-gray-400 text-sm uppercase tracking-widest">No new arrivals yet</div>
+            ) : newArrivals.map((p: FirestoreProduct) => (
               <Link href={`/shop/${p.slug}`} key={p.id} className="product-card group cursor-pointer block opacity-0">
                 <div className="aspect-[3/4] bg-gray-100 mb-4 overflow-hidden relative">
-                  {/* Image Crossfade on Hover */}
-                  <Image src={p.images[0]} alt={p.name} fill className="object-cover transition-opacity duration-500 group-hover:opacity-0" sizes="(max-width: 768px) 100vw, 25vw" />
-                  <Image src={p.images[1] || p.images[0]} alt={`${p.name} Alt`} fill className="object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 scale-105 group-hover:scale-100 ease-out" sizes="(max-width: 768px) 100vw, 25vw" />
-                  {/* Badge */}
+                  {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover transition-opacity duration-500 group-hover:opacity-0" sizes="(max-width: 768px) 100vw, 25vw" />}
+                  {p.images[1] && <Image src={p.images[1] || p.images[0]} alt={`${p.name} Alt`} fill className="object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 scale-105 group-hover:scale-100 ease-out" sizes="(max-width: 768px) 100vw, 25vw" />}
                   <div className="absolute top-4 left-4 bg-white px-2 py-1 text-[10px] uppercase font-bold tracking-widest z-10">New</div>
                 </div>
                 <div className="flex justify-between items-start">
@@ -297,9 +304,11 @@ export default function HomePage() {
             {/* Right Column - 2x2 Grid */}
             <div ref={editRightRef} className="w-full lg:w-2/3 opacity-0">
               <div className="grid grid-cols-2 gap-4 lg:gap-8">
-                {featuredEdit.map(p => (
+                {featuredEdit.length === 0 ? (
+                  <div className="col-span-2 py-12 text-center text-gray-500 text-sm uppercase tracking-widest">No featured products yet</div>
+                ) : featuredEdit.map((p: FirestoreProduct) => (
                   <Link href={`/shop/${p.slug}`} key={p.id} className="group relative aspect-[4/5] bg-[#111] overflow-hidden">
-                    <Image src={p.images[0]} alt={p.name} fill className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" sizes="(max-width: 1024px) 50vw, 33vw" />
+                    {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" sizes="(max-width: 1024px) 50vw, 33vw" />}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                       <p className="text-sm font-medium text-white mb-1">{p.name}</p>
                       <p className="text-xs text-gray-300">₹{p.price.toLocaleString('en-IN')}</p>
@@ -324,9 +333,9 @@ export default function HomePage() {
         {/* Scrolling or Static Grid of 6 */}
         <div className="flex overflow-x-auto pb-8 snap-x snap-mandatory hide-scrollbar">
           <div className="flex gap-2 px-4 sm:px-8 min-w-max mx-auto">
-            {MOCK_PRODUCTS.slice(4, 10).map((p, i) => (
+            {allProducts.slice(0, 6).map((p: FirestoreProduct, i: number) => (
               <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noreferrer" key={i} className="social-item group relative w-[250px] sm:w-[300px] aspect-square bg-gray-100 flex-shrink-0 snap-center overflow-hidden">
-                <Image src={p.images[2] || p.images[0]} alt="Instagram Post" fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="300px" />
+                {(p.images[2] || p.images[0]) && <Image src={p.images[2] || p.images[0]} alt="Instagram Post" fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="300px" />}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                   <div className="text-white text-center flex flex-col items-center">
                     <Instagram size={32} className="mb-2" />

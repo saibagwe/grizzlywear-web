@@ -1,7 +1,7 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
 import { sendSuccess } from '../utils/response.js';
 
-const router = Router();
+const router: express.Router = Router();
 
 router.get('/', (_req: Request, res: Response) => {
   sendSuccess(res, {

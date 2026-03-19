@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUIStore } from '@/store/uiStore';
-import { MOCK_PRODUCTS } from '@/lib/mock-data';
+import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 import { Search, X } from 'lucide-react';
 
 const trendingSearches = ['Oversized Tees', 'Hoodies', 'Wide Leg', 'Caps', 'New Arrivals', "Women's Basics"];
@@ -13,7 +13,14 @@ export default function SearchOverlay() {
   const { isSearchOpen, setSearchOpen } = useUIStore();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Subscribe to products for search
+  useEffect(() => {
+    const unsub = subscribeToProducts((prods) => setAllProducts(prods));
+    return () => unsub();
+  }, []);
 
   // Debounce
   useEffect(() => {
@@ -43,12 +50,12 @@ export default function SearchOverlay() {
   }, [isSearchOpen, setSearchOpen]);
 
   const results = debouncedQuery.trim()
-    ? MOCK_PRODUCTS.filter((p) => {
+    ? allProducts.filter((p: FirestoreProduct) => {
         const q = debouncedQuery.toLowerCase();
         return (
           p.name.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.subcategory.toLowerCase().includes(q) ||
+          (p.tags ?? []).some((t: string) => t.toLowerCase().includes(q)) ||
+          (p.subcategory ?? '').toLowerCase().includes(q) ||
           p.category.toLowerCase().includes(q)
         );
       }).slice(0, 8)

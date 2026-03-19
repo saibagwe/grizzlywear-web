@@ -18,7 +18,7 @@ import userRoutes from './routes/user.js';
 initFirebaseAdmin();
 initCloudinary();
 
-const app = express();
+const app: express.Application = express();
 
 // Middleware
 app.use(helmet());

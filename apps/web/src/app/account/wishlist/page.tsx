@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useCartStore } from '@/store/cartStore';
-import { MOCK_PRODUCTS } from '@/lib/mock-data';
+import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 import { Heart, ShoppingCart, X, Share2, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -12,8 +12,14 @@ export default function WishlistPage() {
   const { wishlistedIds, removeFromWishlist } = useWishlistStore();
   const { addItem } = useCartStore();
   const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
+  const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
 
-  const wishlistProducts = MOCK_PRODUCTS.filter((p) => wishlistedIds.includes(p.id));
+  useEffect(() => {
+    const unsub = subscribeToProducts((prods) => setAllProducts(prods));
+    return () => unsub();
+  }, []);
+
+  const wishlistProducts = allProducts.filter((p: FirestoreProduct) => wishlistedIds.includes(p.id));
 
   const handleAddToCart = (productId: string) => {
     const size = selectedSizes[productId];
@@ -21,10 +27,11 @@ export default function WishlistPage() {
       toast.error('Please select a size');
       return;
     }
-    const product = MOCK_PRODUCTS.find((p) => p.id === productId);
+    const product = allProducts.find((p: FirestoreProduct) => p.id === productId);
     if (!product) return;
 
-    addItem(product, size, 1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addItem(product as any, size, 1);
     removeFromWishlist(productId);
     toast.success('Added to cart');
   };

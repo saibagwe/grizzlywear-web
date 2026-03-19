@@ -134,7 +134,7 @@ export async function updateAddress(req: AuthenticatedRequest, res: Response): P
       return;
     }
 
-    const updatedAddress = { ...user.addresses[addressIndex].toObject(), ...req.body };
+    const updatedAddress = { ...(user.addresses[addressIndex] as any).toObject(), ...req.body };
 
     // If updated address is default, unset others
     if (updatedAddress.isDefault) {

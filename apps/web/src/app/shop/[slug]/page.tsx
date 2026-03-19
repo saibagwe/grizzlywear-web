@@ -1,23 +1,33 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Heart, Star, ChevronLeft, ChevronRight, Share2, X } from 'lucide-react';
+import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { MOCK_PRODUCTS, MOCK_REVIEWS, type Review } from '@/lib/mock-data';
+import { subscribeToProducts, getProductBySlug, type FirestoreProduct } from '@/lib/firestore/productService';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { cn } from '@/lib/utils';
 
+// We need to map Firestore product to the shape the cart expects.
+// The cart was built for the old Product type; we use a compatible subset.
+type CartProduct = {
+  id: string;
+  name: string;
+  price: number;
+  images: string[];
+  sizes: string[];
+  category: string;
+  slug: string;
+};
+
 export default function ProductDetailPage({ params }: { params: { slug: string } }) {
-  const product = MOCK_PRODUCTS.find(p => p.slug === params.slug) || MOCK_PRODUCTS[0]; // fallback for mock
-  
-  if (!product) {
-    notFound();
-  }
+  const [product, setProduct] = useState<FirestoreProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
 
   // State
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -31,38 +41,78 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   // Stores
   const addItem = useCartStore(s => s.addItem);
   const { wishlistedIds, toggleFavorite: toggleWishlist } = useWishlistStore();
-  const isWishlisted = wishlistedIds.includes(product.id);
 
-  // Derived Review Data
-  const productReviews: Review[] = (MOCK_REVIEWS as unknown as Record<string, Review[]>)[product.id] || [];
+  // Fetch product by slug
+  useEffect(() => {
+    setLoading(true);
+    getProductBySlug(params.slug).then((p) => {
+      setProduct(p);
+      setLoading(false);
+    });
+  }, [params.slug]);
+
+  // Subscribe to all products for "You Might Also Like"
+  useEffect(() => {
+    const unsub = subscribeToProducts((prods) => setAllProducts(prods));
+    return () => unsub();
+  }, []);
+
+  const isWishlisted = product ? wishlistedIds.includes(product.id) : false;
+
+  // Reviews — Firestore reviews collection would be a future enhancement.
+  // For now, show empty state gracefully.
+  const productReviews: never[] = [];
   const REVIEWS_PER_PAGE = 3;
   const totalReviewPages = Math.ceil(productReviews.length / REVIEWS_PER_PAGE);
-  const displayedReviews = productReviews.slice((reviewPage - 1) * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE);
-  
-  const avgRating = productReviews.length > 0
-    ? (productReviews.reduce((acc: number, curr: { rating: number }) => acc + curr.rating, 0) / productReviews.length).toFixed(1)
-    : '5.0';
+
+  const avgRating = product?.rating ?? 0;
 
   // Related Products
   const relatedProducts = useMemo(() => {
-    return MOCK_PRODUCTS
+    if (!product) return [];
+    return allProducts
       .filter(p => p.category === product.category && p.id !== product.id)
       .slice(0, 4);
-  }, [product]);
+  }, [product, allProducts]);
 
   // Handlers
   const handleAddToCart = () => {
-    if (!selectedSize && product.sizes) {
+    if (!product) return;
+    if (!selectedSize && product.sizes && product.sizes.length > 0) {
       setSizeError(true);
       return;
     }
     setSizeError(false);
 
-    addItem(
-      product,
-      selectedSize || 'OS',
-      quantity
-    );
+    // Cast to CartProduct shape
+    const cartProduct = {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      images: product.images,
+      sizes: product.sizes,
+      category: product.category,
+      slug: product.slug,
+      // Add remaining fields with safe defaults for cart compatibility
+      comparePrice: product.comparePrice,
+      description: product.description,
+      shortDescription: product.shortDescription,
+      subcategory: product.subcategory,
+      colors: product.colors,
+      material: product.material,
+      fit: product.fit,
+      careInstructions: product.careInstructions,
+      features: product.features,
+      rating: product.rating,
+      reviewCount: product.reviewCount,
+      isNew: product.isNew,
+      isFeatured: product.isFeatured,
+      inStock: product.inStock,
+      tags: product.tags,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addItem(cartProduct as any, selectedSize || 'OS', quantity);
 
     toast.success('Added to cart', {
       description: `${quantity}x ${product.name} (${selectedSize || 'OS'})`,
@@ -74,6 +124,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   };
 
   const handleShare = async () => {
+    if (!product) return;
     try {
       await navigator.share({
         title: product.name,
@@ -89,6 +140,23 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const toggleTab = (tab: 'details' | 'shipping' | 'sizes') => {
     setActiveTab(activeTab === tab ? null : tab);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 pb-20 bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 size={32} className="animate-spin text-gray-400" />
+          <p className="text-xs uppercase tracking-widest text-gray-400">Loading product...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Product not found
+  if (!product) {
+    notFound();
+  }
 
   return (
     <div className="min-h-screen pt-20 pb-20 bg-white">
@@ -109,36 +177,38 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="lg:grid lg:grid-cols-2 lg:gap-16 items-start">
-          
+
           {/* Images Section */}
           <div className="flex flex-col-reverse sm:flex-row gap-4 mb-10 lg:mb-0 lg:sticky lg:top-28">
             {/* Thumbnails */}
             <div className="flex sm:flex-col gap-4 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 w-full sm:w-20 flex-shrink-0 hide-scrollbar">
               {product.images.map((img, i) => (
-                <button 
-                  key={i} 
+                <button
+                  key={i}
                   onClick={() => setActiveImage(i)}
                   className={cn(
                     "relative aspect-[3/4] w-20 sm:w-full flex-shrink-0 border transition-all duration-300",
                     activeImage === i ? "border-black scale-100" : "border-transparent opacity-60 hover:opacity-100 scale-95 hover:scale-100"
                   )}
                 >
-                  <Image src={img} alt={`${product.name} view ${i+1}`} fill className="object-cover" sizes="80px" />
+                  <Image src={img} alt={`${product.name} view ${i + 1}`} fill className="object-cover" sizes="80px" />
                 </button>
               ))}
             </div>
 
             {/* Main Image */}
             <div className="relative aspect-[3/4] w-full bg-gray-100">
-              <Image 
-                src={product.images[activeImage]} 
-                alt={product.name} 
-                fill 
-                priority
-                className="object-cover" 
-                sizes="(max-width: 1024px) 100vw, 50vw"
-              />
-              
+              {product.images[activeImage] && (
+                <Image
+                  src={product.images[activeImage]}
+                  alt={product.name}
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                />
+              )}
+
               {/* Badges Overlay */}
               <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                 {product.isNew && <span className="bg-white/90 backdrop-blur-sm px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase shadow-sm">New</span>}
@@ -156,22 +226,22 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
 
           {/* Product Info Section */}
           <div className="lg:pt-4">
-            
+
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-tight mb-2 pr-4">{product.name}</h1>
                 <div className="flex items-center gap-4 text-sm mt-3">
                   <div className="flex items-center text-yellow-500">
                     <Star size={14} className="fill-current" />
-                    <span className="ml-1.5 font-medium text-black">{avgRating}</span>
+                    <span className="ml-1.5 font-medium text-black">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'}</span>
                   </div>
                   <span className="text-gray-400">|</span>
                   <a href="#reviews" className="text-gray-500 hover:text-black underline underline-offset-4 decoration-gray-300">
-                    {productReviews.length} Reviews
+                    {product.reviewCount} Reviews
                   </a>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => toggleWishlist(product.id)}
                 className="p-3 border border-gray-200 rounded-full hover:border-black transition-colors shrink-0"
               >
@@ -193,7 +263,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             <hr className="border-gray-100 mb-8" />
 
             {/* Sizes */}
-            {product.sizes && (
+            {product.sizes && product.sizes.length > 0 && (
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-900">Select Size</h3>
@@ -208,8 +278,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                       onClick={() => { setSelectedSize(size); setSizeError(false); }}
                       className={cn(
                         "h-14 border text-xs font-bold tracking-widest transition-all",
-                        selectedSize === size 
-                          ? "border-black bg-black text-white" 
+                        selectedSize === size
+                          ? "border-black bg-black text-white"
                           : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
                       )}
                     >
@@ -217,7 +287,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                     </button>
                   ))}
                 </div>
-                {sizeError && <p className="text-xs text-red-500 mt-3 font-medium flex items-center gap-1.5"><X size={14}/> Please select a size to continue.</p>}
+                {sizeError && <p className="text-xs text-red-500 mt-3 font-medium flex items-center gap-1.5"><X size={14} /> Please select a size to continue.</p>}
               </div>
             )}
 
@@ -228,17 +298,18 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 <span className="text-sm font-medium w-8 text-center">{quantity}</span>
                 <button onClick={() => setQuantity(quantity + 1)} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">+</button>
               </div>
-              <button 
+              <button
                 onClick={handleAddToCart}
-                className="h-14 flex-1 bg-black text-white text-xs uppercase tracking-[0.2em] font-bold hover:bg-gray-800 transition-colors active:scale-[0.98]"
+                disabled={!product.inStock}
+                className="h-14 flex-1 bg-black text-white text-xs uppercase tracking-[0.2em] font-bold hover:bg-gray-800 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add to Cart
+                {product.inStock ? 'Add to Cart' : 'Out of Stock'}
               </button>
             </div>
 
             {/* Accordions */}
             <div className="border-t border-gray-200">
-              
+
               {/* Details Tab */}
               <div className="border-b border-gray-200">
                 <button onClick={() => toggleTab('details')} className="w-full py-6 flex justify-between items-center group">
@@ -247,9 +318,9 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 </button>
                 <div className={cn("overflow-hidden transition-all duration-300", activeTab === 'details' ? "max-h-96 pb-6" : "max-h-0")}>
                   <ul className="list-disc pl-5 space-y-2 text-sm text-gray-600">
-                    <li>{product.material}</li>
-                    <li>{product.fit}</li>
-                    {product.features.map((feature: string, idx: number) => (
+                    {product.material && <li>{product.material}</li>}
+                    {product.fit && <li>{product.fit}</li>}
+                    {(product.features ?? []).map((feature: string, idx: number) => (
                       <li key={idx}>{feature}</li>
                     ))}
                   </ul>
@@ -300,9 +371,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                   </div>
                 </div>
               </div>
-
             </div>
-
           </div>
         </div>
       </div>
@@ -315,14 +384,14 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             <div className="flex items-center gap-3">
               <div className="flex text-black">
                 {[1, 2, 3, 4, 5].map(s => (
-                  <Star key={s} size={18} className={s <= Math.round(Number(avgRating)) ? "fill-current" : "text-gray-200 fill-current"} />
+                  <Star key={s} size={18} className={s <= Math.round(avgRating) ? "fill-current" : "text-gray-200 fill-current"} />
                 ))}
               </div>
-              <span className="text-lg font-medium">{avgRating} out of 5</span>
-              <span className="text-sm text-gray-500">Based on {productReviews.length} reviews</span>
+              <span className="text-lg font-medium">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'} out of 5</span>
+              <span className="text-sm text-gray-500">Based on {product.reviewCount} reviews</span>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setShowReviewModal(true)}
             className="border border-black px-8 py-4 text-xs tracking-widest uppercase font-bold hover:bg-black hover:text-white transition-colors"
           >
@@ -330,51 +399,9 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           </button>
         </div>
 
-        {productReviews.length > 0 ? (
-          <div className="space-y-8">
-            {displayedReviews.map((r: { id: string; rating: number; userName: string; date: string; title: string; body: string }) => (
-              <div key={r.id} className="border-b border-gray-100 pb-8">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex text-black mb-2">
-                      {[1, 2, 3, 4, 5].map(s => <Star key={s} size={14} className={s <= r.rating ? "fill-current" : "text-gray-200 fill-current"} />)}
-                    </div>
-                    <p className="font-medium text-sm">{r.userName}</p>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">{r.date}</p>
-                  </div>
-                  <div className="text-xs text-gray-500 font-medium">Verified Buyer</div>
-                </div>
-                <h4 className="font-bold text-sm mb-2">{r.title}</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{r.body}</p>
-              </div>
-            ))}
-            
-            {/* Pagination */}
-            {totalReviewPages > 1 && (
-              <div className="flex justify-center items-center gap-4 pt-8">
-                <button 
-                  disabled={reviewPage === 1} 
-                  onClick={() => setReviewPage(p => p - 1)}
-                  className="p-2 border rounded-full disabled:opacity-30 hover:bg-gray-50"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <span className="text-xs font-bold uppercase tracking-widest">Page {reviewPage} of {totalReviewPages}</span>
-                <button 
-                  disabled={reviewPage === totalReviewPages} 
-                  onClick={() => setReviewPage(p => p + 1)}
-                  className="p-2 border rounded-full disabled:opacity-30 hover:bg-gray-50"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-sm">No reviews yet. Be the first to share your experience!</p>
-          </div>
-        )}
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-500 text-sm">No reviews yet. Be the first to share your experience!</p>
+        </div>
       </div>
 
       {/* YOU MIGHT ALSO LIKE */}
@@ -386,12 +413,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               Shop All
             </Link>
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             {relatedProducts.map(p => (
               <Link key={p.id} href={`/shop/${p.slug}`} className="group block">
                 <div className="aspect-[3/4] bg-gray-100 mb-4 overflow-hidden relative">
-                  <Image src={p.images[0]} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" sizes="(max-width: 768px) 50vw, 25vw" />
+                  {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out" sizes="(max-width: 768px) 50vw, 25vw" />}
                 </div>
                 <h3 className="text-sm font-medium mb-1 group-hover:underline underline-offset-4">{p.name}</h3>
                 <p className="text-sm text-gray-500">₹{p.price.toLocaleString('en-IN')}</p>
@@ -401,12 +428,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
         </div>
       )}
 
-      {/* Minimal Review Modal Override for Prototype */}
+      {/* Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)} />
           <div className="bg-white w-full max-w-lg p-8 relative z-10">
-            <button onClick={() => setShowReviewModal(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full"><X size={20}/></button>
+            <button onClick={() => setShowReviewModal(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
             <h3 className="text-2xl font-light mb-6">Write a Review</h3>
             <form onSubmit={(e) => { e.preventDefault(); toast.success('Review submitted for moderation.'); setShowReviewModal(false); }} className="space-y-4">
               <div>
@@ -428,7 +455,6 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           </div>
         </div>
       )}
-
     </div>
   );
 }

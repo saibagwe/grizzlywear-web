@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { verifyFirebaseToken } from '../middleware/auth.js';
 import {
   getProfile,
@@ -9,7 +9,7 @@ import {
   deleteAddress,
 } from '../controllers/userController.js';
 
-const router = Router();
+const router: express.Router = Router();
 
 // All user routes require authentication
 router.use(verifyFirebaseToken);

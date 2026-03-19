@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
 import { useWishlistStore } from '@/store/wishlistStore';
-import { MOCK_ORDERS, MOCK_PRODUCTS } from '@/lib/mock-data';
+import { MOCK_ORDERS } from '@/lib/mock-data';
+import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import {
@@ -84,8 +85,16 @@ export default function AccountPage() {
   const displayName = profile?.fullName || firebaseUser?.displayName || 'Guest';
   const firstName = displayName.split(' ')[0] || 'there';
 
-  // Derived Wishlist Products
-  const wishlistProducts = MOCK_PRODUCTS.filter((p) => wishlistedIds.includes(p.id));
+  // Derived Wishlist Products — from Firestore
+  const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
+  const wishlistProducts = allProducts.filter((p: FirestoreProduct) => wishlistedIds.includes(p.id));
+
+  useEffect(() => {
+    if (activeTab === 'wishlist') {
+      const unsub = subscribeToProducts((prods) => setAllProducts(prods));
+      return () => unsub();
+    }
+  }, [activeTab]);
 
   // Pre-fill profile form
   useEffect(() => {
@@ -492,7 +501,7 @@ export default function AccountPage() {
                     {wishlistProducts.map((product) => (
                       <div key={product.id} className="group relative block">
                         <Link href={`/shop/${product.slug}`} className="block relative aspect-[3/4] bg-[#F5F5F5] mb-3 overflow-hidden">
-                          <Image src={product.images[0]} alt={product.name} fill className="object-cover" sizes="(max-width: 640px) 50vw, 33vw" />
+                          {product.images[0] && <Image src={product.images[0]} alt={product.name} fill className="object-cover" sizes="(max-width: 640px) 50vw, 33vw" />}
                         </Link>
                         <button onClick={() => toggleWishlist(product.id)} className="absolute top-2 right-2 p-2 z-20 rounded-full bg-white/80 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all hover:bg-white shadow-sm">
                           <Heart size={14} className="fill-red-500 text-red-500" />

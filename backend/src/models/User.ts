@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IAddress {
+  _id?: mongoose.Types.ObjectId;
   label: string;
   fullName: string;
   phone: string;
