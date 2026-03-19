@@ -8,10 +8,8 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
 import { useWishlistStore } from '@/store/wishlistStore';
-import { MOCK_ORDERS } from '@/lib/mock-data';
 import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
-import { db } from '@/lib/firebase';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { subscribeToUserOrders, type FirestoreOrder } from '@/lib/firestore/orderService';
 import {
   updateUserProfile,
   getAddresses,
@@ -78,7 +76,7 @@ export default function AccountPage() {
   const [addrSaving, setAddrSaving] = useState(false);
 
   // ── Orders state ──
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
   const uid = firebaseUser?.uid;
@@ -126,40 +124,16 @@ export default function AccountPage() {
     }
   }, [uid, activeTab, loadAddresses]);
 
-  // Load orders
-  const loadOrders = useCallback(async () => {
-    if (!uid) return;
-    setOrdersLoading(true);
-    try {
-      const q = query(
-        collection(db, 'users', uid, 'orders'),
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => {
-        const d = doc.data();
-        let dateObj = d.createdAt ? d.createdAt.toDate() : new Date();
-        return {
-          id: d.orderId,
-          date: dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-          status: d.status || 'processing',
-          total: d.pricing?.total || 0,
-          items: d.items || [],
-        };
-      });
-      setOrders(data);
-    } catch (err) {
-      console.error("Error loading orders:", err);
-      setOrders([]);
-    }
-    setOrdersLoading(false);
-  }, [uid]);
-
+  // Load orders — real-time from top-level orders collection
   useEffect(() => {
-    if (uid && activeTab === 'orders') {
-      loadOrders();
-    }
-  }, [uid, activeTab, loadOrders]);
+    if (!uid || activeTab !== 'orders') return;
+    setOrdersLoading(true);
+    const unsub = subscribeToUserOrders(uid, (data) => {
+      setOrders(data);
+      setOrdersLoading(false);
+    });
+    return () => unsub();
+  }, [uid, activeTab]);
 
   // Profile form changed?
   const profileChanged = profile
@@ -437,13 +411,19 @@ export default function AccountPage() {
                   </div>
                 ) : orders.length > 0 ? (
                   <div className="space-y-6">
-                    {orders.map((order) => (
+                    {orders.map((order) => {
+                      const orderDate = order.createdAt
+                        ? (order.createdAt as any)?.toDate
+                          ? (order.createdAt as any).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                          : new Date(order.createdAt as any).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : '—';
+                      return (
                       <div key={order.id} className="border border-gray-200">
                         <div className="bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200">
                           <div className="flex gap-8">
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order Placed</p>
-                              <p className="text-sm font-medium">{order.date}</p>
+                              <p className="text-sm font-medium">{orderDate}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Total</p>
@@ -451,24 +431,31 @@ export default function AccountPage() {
                             </div>
                           </div>
                           <div className="text-left sm:text-right flex flex-col items-start sm:items-end">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order # {order.id}</p>
-                            <Link href={`/orders/confirmation/${order.id}`} className="text-[10px] font-bold uppercase tracking-widest text-black hover:underline mt-1">View Details</Link>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order # {order.orderId}</p>
+                            <Link href={`/orders/confirmation/${order.orderId}`} className="text-[10px] font-bold uppercase tracking-widest text-black hover:underline mt-1">View Details</Link>
                           </div>
                         </div>
                         <div className="p-6">
                           <div className="flex items-center gap-2 mb-6">
-                            <span className={cn('w-2 h-2 rounded-full', order.status === 'delivered' ? 'bg-green-500' : (order.status === 'packed' || order.status === 'shipped') ? 'bg-yellow-500' : 'bg-blue-500')} />
+                            <span className={cn('w-2 h-2 rounded-full',
+                              order.status === 'delivered' ? 'bg-green-500' :
+                              order.status === 'shipped' ? 'bg-yellow-500' :
+                              order.status === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
+                            )} />
                             <span className="text-sm font-bold uppercase tracking-widest">{order.status}</span>
                           </div>
                           <div className="space-y-6">
-                            {order.items.map((item: any, idx: number) => (
+                            {order.items.map((item, idx) => (
                               <div key={`${order.id}-item-${idx}`} className="flex gap-4">
                                 <div className="relative w-20 h-24 bg-gray-100 flex-shrink-0 border border-gray-200">
-                                  <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="80px" />
+                                  {item.image
+                                    ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="80px" />
+                                    : <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">IMG</div>
+                                  }
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <Link href={`/shop/${item.productId}`} className="text-sm font-medium hover:underline underline-offset-4 line-clamp-1">{item.name}</Link>
-                                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} • Color: {item.color} | Qty: {item.quantity}</p>
+                                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} | Qty: {item.quantity}</p>
                                   <p className="text-sm font-medium mt-2">₹{item.price.toLocaleString('en-IN')}</p>
                                 </div>
                               </div>
@@ -476,7 +463,8 @@ export default function AccountPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-16 px-4 border border-gray-200 bg-[#F9F9F9]">

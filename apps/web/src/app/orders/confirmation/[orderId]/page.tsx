@@ -9,8 +9,7 @@ import confetti from 'canvas-confetti';
 import gsap from 'gsap';
 
 import { useAuth } from '@/hooks/useAuth';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { getOrderByOrderId } from '@/lib/firestore/orderService';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -47,33 +46,46 @@ export default function OrderConfirmationPage() {
         }
       }
 
-      // Fallback: Fetch from Firestore (e.g., user refreshed the page)
+      // Fallback: fetch from top-level /orders collection by human-readable orderId
       if (firebaseUser) {
         try {
-          const ordersRef = collection(db, 'users', firebaseUser.uid, 'orders');
-          const q = query(ordersRef, where('orderId', '==', orderId), limit(1));
-          const snap = await getDocs(q);
-          
-          if (!snap.empty) {
-            const firestoreOrder = snap.docs[0].data();
-            
-            // Format for display to match sessionStorage structure locally
+          const firestoreOrder = await getOrderByOrderId(orderId);
+
+          if (firestoreOrder) {
+            const addr = firestoreOrder.shippingAddress;
             const fOrder = {
               orderId: firestoreOrder.orderId,
-              items: firestoreOrder.items,
-              pricing: firestoreOrder.pricing,
-              deliveryAddress: firestoreOrder.deliveryAddress,
-              payment: firestoreOrder.payment,
+              items: firestoreOrder.items.map((i) => ({
+                ...i,
+                imageUrl: i.image,
+              })),
+              pricing: {
+                subtotal: firestoreOrder.subtotal,
+                shippingCharge: firestoreOrder.shipping,
+                discount: firestoreOrder.discount,
+                total: firestoreOrder.total,
+              },
+              deliveryAddress: {
+                name: addr.name,
+                line1: addr.address,
+                city: addr.city,
+                state: addr.state,
+                pincode: addr.pincode,
+                phone: addr.phone || '',
+              },
+              payment: {
+                method: firestoreOrder.paymentMethod,
+                razorpayPaymentId: firestoreOrder.razorpayPaymentId || null,
+              },
               estimatedDelivery: 'within 5-7 business days',
             };
-            
+
             setOrder(fOrder);
             setLoading(false);
-            // No confetti on refresh
             return;
           }
         } catch (err) {
-          console.error("Error fetching order:", err);
+          console.error('Error fetching order:', err);
         }
       }
 

@@ -22,7 +22,7 @@
  */
 
 import { db } from '@/lib/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!;
 const ORDER_API_URL = process.env.NEXT_PUBLIC_ORDER_API_URL!;
@@ -135,30 +135,58 @@ export function openRazorpayCheckout(
 }
 
 /**
- * Step 3: Save the completed order to Firestore.
+ * Step 3: Save the completed order directly to Firestore /orders collection.
+ * Returns the human-readable order ID (GW-XXXXXXXX).
+ *
+ * NOTE: Only writes to /orders top-level collection (covered by Firestore rules).
+ * The user sub-collection mirror was removed — it caused Permission Denied errors
+ * because the /users/{uid}/orders path is not explicitly allowed in Firestore rules.
  */
 export async function saveOrderToFirestore(
   uid: string,
   payload: OrderPayload,
   paymentResponse: Partial<RazorpayPaymentResponse>,
-  method: 'razorpay' | 'cod'
-) {
+  method: 'razorpay' | 'cod',
+  userInfo?: { name?: string; email?: string; phone?: string }
+): Promise<string> {
+  if (!uid) {
+    throw new Error('User must be authenticated to place an order.');
+  }
+
   // Generate a human-readable order ID GW-XXXXXXXX
   const orderId = `GW-${Date.now().toString().slice(-8)}`;
+
+  const addr = payload.deliveryAddress;
 
   const orderData = {
     orderId,
     userId: uid,
+    customerName: userInfo?.name || addr.name || '',
+    customerEmail: userInfo?.email || '',
+    customerPhone: userInfo?.phone || addr.phone || '',
     items: payload.cartItems.map((item) => ({
       productId: item.productId,
       name: item.name,
       size: item.size,
-      color: item.color,
       quantity: item.quantity,
       price: item.price,
-      imageUrl: item.imageUrl,
+      image: item.imageUrl,
     })),
-    deliveryAddress: payload.deliveryAddress,
+    shippingAddress: {
+      name: addr.name,
+      address: addr.line1 + (addr.line2 ? `, ${addr.line2}` : ''),
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      country: 'India',
+      phone: addr.phone || userInfo?.phone || '',
+    },
+    // Keep deliveryAddress for backward compatibility with confirmation page
+    deliveryAddress: addr,
+    subtotal: payload.subtotal,
+    shipping: payload.shippingCharge,
+    discount: payload.discount,
+    total: payload.total,
     pricing: {
       subtotal: payload.subtotal,
       shippingCharge: payload.shippingCharge,
@@ -166,38 +194,23 @@ export async function saveOrderToFirestore(
       discountCode: payload.discountCode || null,
       total: payload.total,
     },
+    paymentMethod: method,
+    paymentStatus: method === 'razorpay' ? 'paid' : 'unpaid',
     payment: {
       method,
-      status: 'paid', // for both COD and Razorpay for now
+      status: method === 'razorpay' ? 'paid' : 'unpaid',
       razorpayPaymentId: paymentResponse.razorpay_payment_id || null,
       razorpayOrderId: paymentResponse.razorpay_order_id || null,
       razorpaySignature: paymentResponse.razorpay_signature || null,
-      paidAt: serverTimestamp(),
     },
-    status: 'confirmed',
+    status: 'pending',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  // Save to global /orders collection
-  const globalRef = doc(collection(db, 'orders'));
-  const firestoreId = globalRef.id;
-
-  // Save to user's sub-collection with same document ID
-  const userRef = doc(db, 'users', uid, 'orders', firestoreId);
-
-  const { setDoc } = await import('firebase/firestore');
-  
-  const savePromise = Promise.all([
-    setDoc(globalRef, orderData),
-    setDoc(userRef, orderData),
-  ]);
-
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Firestore saving timed out. Please check your network or Firestore rules.')), 8000);
-  });
-
-  await Promise.race([savePromise, timeoutPromise]);
+  // Write directly to /orders collection — authenticated user, userId field present.
+  // Firestore rules allow: create if request.auth != null
+  await addDoc(collection(db, 'orders'), orderData);
 
   return orderId;
 }

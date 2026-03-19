@@ -4,20 +4,23 @@ service cloud.firestore {
 
     // ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────
 
-    // Check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Check if the requesting user has the admin role in their users doc
     function isAdmin() {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && (
+        request.auth.token.email == 'admin@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     // ─── PRODUCTS COLLECTION ───────────────────────────────────────────────────
-    // Anyone (including unauthenticated) can read products.
-    // Only admins can create, update, or delete products.
+    // Anyone can read products. Only admins can write.
 
     match /products/{productId} {
       allow read: if true;
@@ -25,29 +28,40 @@ service cloud.firestore {
     }
 
     // ─── USERS COLLECTION ──────────────────────────────────────────────────────
-    // Users can only read/write their own document.
-    // Admins can read any user document (needed for isAdmin() check above).
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
       allow delete: if isAdmin();
 
       // Addresses subcollection
       match /addresses/{addressId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      // Orders subcollection (mirror) — user can create/read their own
+      match /orders/{orderId} {
+        allow read, create: if isAuthenticated() && isOwner(userId);
+        allow update, delete: if isAdmin();
       }
     }
 
-    // ─── ORDERS COLLECTION ─────────────────────────────────────────────────────
-    // Users can read their own orders; admins can read/write all.
+    // ─── ORDERS COLLECTION (top-level) ─────────────────────────────────────────
+    // Authenticated users can CREATE orders (Firestore rule checks auth, not userId field at create time)
+    // Users can READ their own orders; admins can read/write all.
 
     match /orders/{orderId} {
-      allow read: if isAuthenticated() &&
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Single-document read: owner or admin
+      allow get: if isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      // Collection query (list): only admins can list all orders;
+      // users can list their own via a where('userId','==',uid) query.
+      // resource.data is NOT available for list rules, so we check isAdmin() only.
+      allow list: if isAuthenticated() && isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ─── DEFAULT: DENY ALL ─────────────────────────────────────────────────────

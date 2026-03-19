@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -15,11 +16,12 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
+import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, showBadge: true },
   { href: '/admin/inventory', label: 'Inventory', icon: Warehouse },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
@@ -34,6 +36,18 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Real-time pending badge
+  useEffect(() => {
+    const unsub = subscribeToAllOrders(
+      (orders) => {
+        setPendingCount(orders.filter((o) => o.status === 'pending').length);
+      },
+      () => { /* badge error — silently ignore */ }
+    );
+    return () => unsub();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 pt-0">
@@ -52,6 +66,15 @@ export default function AdminLayout({
             </span>
           </div>
           <div className="flex items-center gap-3">
+            {pendingCount > 0 && (
+              <Link
+                href="/admin/orders"
+                className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full hover:bg-orange-100 transition-colors"
+              >
+                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                {pendingCount} pending
+              </Link>
+            )}
             <Link
               href="/"
               className="text-xs text-gray-500 hover:text-black transition-colors"
@@ -83,14 +106,24 @@ export default function AdminLayout({
                     <Link
                       href={item.href}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                        'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors',
                         isActive
                           ? 'bg-black text-white'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-black'
                       )}
                     >
-                      <item.icon className="w-4 h-4" />
-                      {item.label}
+                      <div className="flex items-center gap-3">
+                        <item.icon className="w-4 h-4" />
+                        {item.label}
+                      </div>
+                      {item.showBadge && pendingCount > 0 && (
+                        <span className={cn(
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                          isActive ? 'bg-white text-black' : 'bg-orange-500 text-white'
+                        )}>
+                          {pendingCount}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

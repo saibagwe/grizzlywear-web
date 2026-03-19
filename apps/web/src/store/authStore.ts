@@ -80,13 +80,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     // Auth state listener
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Check admin claim
-        let isAdmin = false;
-        try {
-          const tokenResult = await user.getIdTokenResult();
-          isAdmin = tokenResult.claims.admin === true;
-        } catch {
-          // no-op
+        // Check admin claim — or grant admin by email
+        const ADMIN_EMAIL = 'admin@gmail.com';
+        let isAdmin = user.email === ADMIN_EMAIL;
+        if (!isAdmin) {
+          try {
+            const tokenResult = await user.getIdTokenResult();
+            isAdmin = tokenResult.claims.admin === true;
+          } catch {
+            // no-op
+          }
         }
 
         // Fetch or create Firestore profile

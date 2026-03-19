@@ -115,12 +115,18 @@ export default function CheckoutPage() {
     if (paymentMethod === 'cod') {
       try {
         setPaymentPhase('confirming');
-        // BYPASS: Temporarily bypassing Firestore save due to rules issue
-        const orderId = `GW-${Date.now().toString().slice(-8)}`; 
-        
-        setTimeout(() => {
-          finalizeOrder(orderId, 'cod', null);
-        }, 2000);
+        const orderId = await saveOrderToFirestore(
+          firebaseUser.uid,
+          payload,
+          {},
+          'cod',
+          {
+            name: profile?.fullName || firebaseUser.displayName || '',
+            email: profile?.email || firebaseUser.email || '',
+            phone: profile?.phone || '',
+          }
+        );
+        finalizeOrder(orderId, 'cod', null);
       } catch (err: any) {
         console.error('COD Save Error:', err);
         toast.error(`Failed to create COD order: ${err.message || 'Unknown error'}`);
@@ -164,12 +170,18 @@ export default function CheckoutPage() {
         // SUCCESS HANDLER
         try {
           setPaymentPhase('confirming');
-          // BYPASS: Temporarily bypassing Firestore save due to rules issue
-          const orderId = `GW-${Date.now().toString().slice(-8)}`;
-          
-          setTimeout(() => {
-            finalizeOrder(orderId, 'razorpay', response.razorpay_payment_id);
-          }, 2000);
+          const orderId = await saveOrderToFirestore(
+            firebaseUser.uid,
+            payload,
+            response,
+            'razorpay',
+            {
+              name: profile?.fullName || firebaseUser.displayName || '',
+              email: profile?.email || firebaseUser.email || '',
+              phone: profile?.phone || '',
+            }
+          );
+          finalizeOrder(orderId, 'razorpay', response.razorpay_payment_id);
         } catch (saveErr: any) {
           console.error('Razorpay Save Error:', saveErr);
           // CRITICAL: Payment succeeded, but Firestore save failed
