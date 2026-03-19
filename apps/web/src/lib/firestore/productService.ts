@@ -15,13 +15,7 @@ import {
   type QuerySnapshot,
   type DocumentData,
 } from 'firebase/firestore';
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -223,43 +217,5 @@ export async function deleteProduct(id: string): Promise<void> {
   await deleteDoc(doc(db, 'products', id));
 }
 
-// ─── IMAGE UPLOAD ─────────────────────────────────────────────────────────────
-
-/**
- * Upload an image file to Firebase Storage and return its download URL.
- * Path: products/{productId}/{timestamp}_{filename}
- */
-export async function uploadProductImage(
-  file: File,
-  productId: string
-): Promise<string> {
-  const timestamp = Date.now();
-  const filename = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-  const path = `products/${productId}/${filename}`;
-  const ref = storageRef(storage, path);
-  const snapshot = await uploadBytes(ref, file);
-  return getDownloadURL(snapshot.ref);
-}
-
-/**
- * Delete an image from Firebase Storage by its URL.
- */
-export async function deleteProductImage(url: string): Promise<void> {
-  try {
-    const ref = storageRef(storage, url);
-    await deleteObject(ref);
-  } catch {
-    // Ignore errors if image doesn't exist
-  }
-}
-
-/**
- * Upload multiple images and return all download URLs.
- */
-export async function uploadProductImages(
-  files: File[],
-  productId: string
-): Promise<string[]> {
-  const uploads = files.map((f) => uploadProductImage(f, productId));
-  return Promise.all(uploads);
-}
+// Images are uploaded directly via Cloudinary's CldUploadWidget in the browser.
+// The resulting secure_url strings are stored in Firestore's images[] array.

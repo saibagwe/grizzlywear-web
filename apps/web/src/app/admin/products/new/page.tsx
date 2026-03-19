@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Loader2, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { CldUploadWidget } from 'next-cloudinary';
 
 import {
   createProduct,
   updateProduct,
   getProductById,
-  uploadProductImages,
   type ProductInput,
   type FirestoreProduct,
 } from '@/lib/firestore/productService';
@@ -60,13 +60,10 @@ export default function AddEditProductPage() {
   const [careInstructions, setCareInstructions] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
 
-  // Image state
-  const [existingImages, setExistingImages] = useState<string[]>([]);
-  const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
-  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // All product image URLs (existing + newly uploaded via Cloudinary)
+  const [images, setImages] = useState<string[]>([]);
 
-  // Load product data for editing
+  // Load product data when editing
   useEffect(() => {
     if (!editId) return;
     setIsLoading(true);
@@ -94,30 +91,13 @@ export default function AddEditProductPage() {
       setFeatures(product.features ?? []);
       setCareInstructions(product.careInstructions ?? []);
       setTags(product.tags ?? []);
-      setExistingImages(product.images ?? []);
+      setImages(product.images ?? []);
       setIsLoading(false);
     });
   }, [editId, router]);
 
-  // Image file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    setNewImageFiles((prev) => [...prev, ...files]);
-    const previews = files.map((f) => URL.createObjectURL(f));
-    setNewImagePreviews((prev) => [...prev, ...previews]);
-  };
-
-  const removeExistingImage = (idx: number) => {
-    setExistingImages((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const removeNewImage = (idx: number) => {
-    setNewImageFiles((prev) => prev.filter((_, i) => i !== idx));
-    setNewImagePreviews((prev) => {
-      URL.revokeObjectURL(prev[idx]);
-      return prev.filter((_, i) => i !== idx);
-    });
+  const removeImage = (idx: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Tag-style input helpers
@@ -142,24 +122,13 @@ export default function AddEditProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (existingImages.length + newImageFiles.length === 0) {
-      toast.error('Please add at least one product image.');
+    if (images.length === 0) {
+      toast.error('Please upload at least one product image.');
       return;
     }
     setIsSubmitting(true);
 
     try {
-      // Determine a product ID for Storage path
-      const productId = editId ?? crypto.randomUUID();
-
-      // Upload new images
-      let uploadedUrls: string[] = [];
-      if (newImageFiles.length > 0) {
-        uploadedUrls = await uploadProductImages(newImageFiles, productId);
-      }
-
-      const allImages = [...existingImages, ...uploadedUrls];
-
       const slug = formData.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -179,7 +148,7 @@ export default function AddEditProductPage() {
         discount,
         category: formData.category as FirestoreProduct['category'],
         subcategory: formData.subcategory,
-        images: allImages,
+        images,
         sizes,
         colors: [],
         material: formData.material,
@@ -291,24 +260,27 @@ export default function AddEditProductPage() {
             </div>
           </div>
 
-          {/* Media */}
+          {/* ── Media / Cloudinary ── */}
           <div className="bg-white border border-gray-200 p-6 sm:p-8">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 mb-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 mb-1">
               Media
-              <span className="ml-2 text-xs text-gray-400 font-normal normal-case tracking-normal">
-                (uploaded to Firebase Storage)
-              </span>
             </h2>
+            <p className="text-xs text-gray-400 mb-6">Images are uploaded via Cloudinary and stored as URLs in Firestore.</p>
 
-            {/* Existing images */}
-            {existingImages.length > 0 && (
-              <div className="flex flex-wrap gap-3 mb-4">
-                {existingImages.map((url, i) => (
+            {/* Image previews */}
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-3 mb-5">
+                {images.map((url, i) => (
                   <div key={i} className="relative w-24 h-28 flex-shrink-0 group">
-                    <Image src={url} alt={`Image ${i + 1}`} fill className="object-cover border border-gray-200" />
+                    <Image
+                      src={url}
+                      alt={`Product image ${i + 1}`}
+                      fill
+                      className="object-cover border border-gray-200"
+                    />
                     <button
                       type="button"
-                      onClick={() => removeExistingImage(i)}
+                      onClick={() => removeImage(i)}
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={10} />
@@ -318,44 +290,59 @@ export default function AddEditProductPage() {
               </div>
             )}
 
-            {/* New image previews */}
-            {newImagePreviews.length > 0 && (
-              <div className="flex flex-wrap gap-3 mb-4">
-                {newImagePreviews.map((url, i) => (
-                  <div key={i} className="relative w-24 h-28 flex-shrink-0 group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt={`New ${i + 1}`} className="w-full h-full object-cover border border-blue-200" />
-                    <div className="absolute bottom-0 left-0 right-0 bg-blue-600 text-white text-[9px] text-center py-0.5">NEW</div>
-                    <button
-                      type="button"
-                      onClick={() => removeNewImage(i)}
-                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div
-              className="border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer group"
-              onClick={() => fileInputRef.current?.click()}
+            {/* Cloudinary Upload Widget */}
+            <CldUploadWidget
+              uploadPreset="grizzlywear_products"
+              options={{
+                multiple: true,
+                maxFiles: 10,
+                resourceType: 'image',
+                sources: ['local', 'url', 'camera'],
+                styles: {
+                  palette: {
+                    window: '#FFFFFF',
+                    windowBorder: '#90A0B3',
+                    tabIcon: '#000000',
+                    menuIcons: '#5A616A',
+                    textDark: '#000000',
+                    textLight: '#FFFFFF',
+                    link: '#000000',
+                    action: '#000000',
+                    inactiveTabIcon: '#999999',
+                    error: '#F44235',
+                    inProgress: '#000000',
+                    complete: '#20B832',
+                    sourceBg: '#F5F5F5',
+                  },
+                },
+              }}
+              onSuccess={(result) => {
+                // result.info is the Cloudinary upload result object
+                const info = result?.info as { secure_url?: string } | undefined;
+                if (info?.secure_url) {
+                  setImages((prev) => [...prev, info.secure_url!]);
+                  toast.success('Image uploaded successfully!');
+                }
+              }}
             >
-              <div className="w-14 h-14 bg-white border border-gray-200 flex items-center justify-center mx-auto mb-3 group-hover:border-black transition-colors">
-                <Upload size={22} className="text-gray-400 group-hover:text-black transition-colors" />
-              </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">Click to upload product images</p>
-              <p className="text-xs text-gray-500">PNG, JPG, WebP — uploaded to Firebase Storage</p>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
+              {({ open }) => (
+                <button
+                  type="button"
+                  onClick={() => open()}
+                  className="w-full border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center hover:bg-gray-50 hover:border-black transition-colors group flex flex-col items-center gap-3"
+                >
+                  <div className="w-14 h-14 bg-white border border-gray-200 flex items-center justify-center group-hover:border-black transition-colors">
+                    <ImagePlus size={22} className="text-gray-400 group-hover:text-black transition-colors" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {images.length > 0 ? 'Upload more images' : 'Click to upload product images'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">PNG, JPG, WebP — uploaded securely via Cloudinary</p>
+                  </div>
+                </button>
+              )}
+            </CldUploadWidget>
           </div>
 
           {/* Variants */}
@@ -535,6 +522,13 @@ export default function AddEditProductPage() {
               </label>
             </div>
           </div>
+
+          {/* Image count indicator */}
+          {images.length > 0 && (
+            <div className="bg-green-50 border border-green-200 p-4 text-xs font-medium text-green-800">
+              ✓ {images.length} image{images.length !== 1 ? 's' : ''} ready
+            </div>
+          )}
 
           {/* Submit */}
           <div className="bg-[#F9F9F9] border border-gray-200 p-6 sticky top-28">
