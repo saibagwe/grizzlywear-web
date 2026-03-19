@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
@@ -417,6 +417,15 @@ export default function AccountPage() {
                           ? (order.createdAt as any).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
                           : new Date(order.createdAt as any).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
                         : '—';
+                      const itemsSummary = order.items.length === 1
+                        ? order.items[0].name
+                        : `${order.items[0]?.name || 'Item'} + ${order.items.length - 1} more`;
+                      const statusColor =
+                        order.status === 'delivered' ? 'bg-green-100 text-green-700 border-green-200' :
+                        order.status === 'shipped' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                        order.status === 'processing' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                        order.status === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' :
+                        'bg-yellow-100 text-yellow-700 border-yellow-200';
                       return (
                       <div key={order.id} className="border border-gray-200">
                         <div className="bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200">
@@ -429,21 +438,19 @@ export default function AccountPage() {
                               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Total</p>
                               <p className="text-sm font-medium">₹{order.total.toLocaleString('en-IN')}</p>
                             </div>
+                            <div className="hidden sm:block">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Items</p>
+                              <p className="text-sm font-medium truncate max-w-[180px]">{itemsSummary}</p>
+                            </div>
                           </div>
-                          <div className="text-left sm:text-right flex flex-col items-start sm:items-end">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order # {order.orderId}</p>
-                            <Link href={`/orders/confirmation/${order.orderId}`} className="text-[10px] font-bold uppercase tracking-widest text-black hover:underline mt-1">View Details</Link>
+                          <div className="text-left sm:text-right flex flex-col items-start sm:items-end gap-1">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Order # {order.orderId}</p>
+                            <span className={cn('inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border', statusColor)}>
+                              {order.status}
+                            </span>
                           </div>
                         </div>
                         <div className="p-6">
-                          <div className="flex items-center gap-2 mb-6">
-                            <span className={cn('w-2 h-2 rounded-full',
-                              order.status === 'delivered' ? 'bg-green-500' :
-                              order.status === 'shipped' ? 'bg-yellow-500' :
-                              order.status === 'cancelled' ? 'bg-red-500' : 'bg-blue-500'
-                            )} />
-                            <span className="text-sm font-bold uppercase tracking-widest">{order.status}</span>
-                          </div>
                           <div className="space-y-6">
                             {order.items.map((item, idx) => (
                               <div key={`${order.id}-item-${idx}`} className="flex gap-4">
@@ -461,6 +468,17 @@ export default function AccountPage() {
                               </div>
                             ))}
                           </div>
+                          <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <Link
+                              href={`/track?orderId=${encodeURIComponent(order.orderId)}`}
+                              className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
+                            >
+                              <Truck size={14} /> Track Order
+                            </Link>
+                            <Link href={`/orders/confirmation/${order.orderId}`} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4">
+                              View Details
+                            </Link>
+                          </div>
                         </div>
                       </div>
                       );
@@ -469,9 +487,9 @@ export default function AccountPage() {
                 ) : (
                   <div className="text-center py-16 px-4 border border-gray-200 bg-[#F9F9F9]">
                     <Package size={48} className="mx-auto text-gray-300 mb-4" />
-                    <p className="text-lg font-medium mb-2">No orders yet</p>
+                    <p className="text-lg font-medium mb-2">You haven&apos;t placed any orders yet</p>
                     <p className="text-sm text-gray-500 mb-6">When you place an order, it will appear here.</p>
-                    <Link href="/shop" className="inline-block bg-black text-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">Start Shopping</Link>
+                    <Link href="/shop" className="inline-block bg-black text-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">Shop Now</Link>
                   </div>
                 )}
               </div>

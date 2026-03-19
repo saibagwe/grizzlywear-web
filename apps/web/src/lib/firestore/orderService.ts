@@ -148,6 +148,35 @@ export async function getOrderByOrderId(orderId: string): Promise<FirestoreOrder
   return docToOrder(d.id, d.data());
 }
 
+// ─── REAL-TIME SINGLE ORDER BY orderId ────────────────────────────────────────
+
+/**
+ * Subscribe to a single order in real-time by its human-readable orderId field (e.g. GW-12345678).
+ * Calls callback with the order whenever it changes, or null if not found.
+ */
+export function subscribeToOrderByOrderId(
+  orderId: string,
+  callback: (order: FirestoreOrder | null) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const q = query(collection(db, 'orders'), where('orderId', '==', orderId));
+  return onSnapshot(
+    q,
+    (snap) => {
+      if (snap.empty) {
+        callback(null);
+      } else {
+        const d = snap.docs[0];
+        callback(docToOrder(d.id, d.data()));
+      }
+    },
+    (err) => {
+      console.error('[subscribeToOrderByOrderId] Firestore error:', err.code, err.message);
+      onError?.(err);
+    }
+  );
+}
+
 // ─── GET ALL ORDERS (one-time) ────────────────────────────────────────────────
 
 export async function getAllOrders(): Promise<FirestoreOrder[]> {

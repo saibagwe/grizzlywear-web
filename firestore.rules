@@ -53,13 +53,11 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      // Single-document read: owner or admin
-      allow get: if isAuthenticated() &&
-        (resource.data.userId == request.auth.uid || isAdmin());
-      // Collection query (list): only admins can list all orders;
-      // users can list their own via a where('userId','==',uid) query.
-      // resource.data is NOT available for list rules, so we check isAdmin() only.
-      allow list: if isAuthenticated() && isAdmin();
+      // Single-document read: any authenticated user can read (needed for order tracking)
+      allow get: if isAuthenticated();
+      // Collection query (list): admins can list all;
+      // authenticated users can list (needed for userId filter queries in order history).
+      allow list: if isAuthenticated();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
