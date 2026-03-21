@@ -1,15 +1,22 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck, MessageSquare, ArrowLeft, Send, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 import { subscribeToUserOrders, type FirestoreOrder } from '@/lib/firestore/orderService';
+import {
+  subscribeToUserTickets,
+  subscribeToTicket,
+  addTicketMessage,
+  type FirestoreTicket,
+} from '@/lib/firestore/ticketService';
 import {
   updateUserProfile,
   getAddresses,
@@ -21,7 +28,7 @@ import {
 } from '@/lib/firestore/userService';
 import { cn } from '@/lib/utils';
 
-type TabType = 'profile' | 'orders' | 'wishlist' | 'addresses';
+type TabType = 'profile' | 'orders' | 'wishlist' | 'addresses' | 'support';
 
 const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
@@ -51,10 +58,48 @@ function InitialsAvatar({ name, size = 80 }: { name: string; size?: number }) {
   );
 }
 
+function ticketStatusColor(status: string) {
+  switch (status) {
+    case 'open':        return 'bg-green-100 text-green-800 border-green-200';
+    case 'in-progress': return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'resolved':    return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'closed':      return 'bg-gray-100 text-gray-600 border-gray-200';
+    default:            return 'bg-gray-100 text-gray-700 border-gray-200';
+  }
+}
+
+function ticketCategoryLabel(c: string) {
+  switch (c) {
+    case 'order-issue':    return 'Order Issue';
+    case 'product-issue':  return 'Product Issue';
+    case 'payment-issue':  return 'Payment Issue';
+    case 'delivery-issue': return 'Delivery Issue';
+    case 'other':          return 'Other';
+    default:               return c;
+  }
+}
+
+function formatTicketDate(ts: any): string {
+  if (!ts) return '—';
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatTicketDateTime(ts: any): string {
+  if (!ts) return '—';
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function AccountPage() {
+  const searchParams = useSearchParams();
   const { firebaseUser, profile, user, logout, refreshProfile, loading: authLoading } = useAuthStore();
   const { wishlistedIds, toggleFavorite: toggleWishlist } = useWishlistStore();
-  const [activeTab, setActiveTab] = useState<TabType>('profile');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
+    if (tab === 'support') return 'support';
+    return 'profile';
+  });
 
   // ── Profile form state ──
   const [formFullName, setFormFullName] = useState('');
@@ -78,6 +123,16 @@ export default function AccountPage() {
   // ── Orders state ──
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+
+  // ── Tickets state ──
+  const [tickets, setTickets] = useState<FirestoreTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<FirestoreTicket | null>(null);
+  const [selectedTicketLoading, setSelectedTicketLoading] = useState(false);
+  const [ticketReply, setTicketReply] = useState('');
+  const [ticketReplySending, setTicketReplySending] = useState(false);
+  const ticketMessagesEndRef = useRef<HTMLDivElement>(null);
 
   const uid = firebaseUser?.uid;
   const displayName = profile?.fullName || firebaseUser?.displayName || 'Guest';
@@ -134,6 +189,64 @@ export default function AccountPage() {
     });
     return () => unsub();
   }, [uid, activeTab]);
+
+  // Load tickets
+  useEffect(() => {
+    if (!uid || activeTab !== 'support') return;
+    setTicketsLoading(true);
+    const unsub = subscribeToUserTickets(
+      uid,
+      (data) => {
+        setTickets(data);
+        setTicketsLoading(false);
+      },
+      () => setTicketsLoading(false)
+    );
+    return () => unsub();
+  }, [uid, activeTab]);
+
+  // Subscribe to selected ticket in real-time
+  useEffect(() => {
+    if (!selectedTicketId) {
+      setSelectedTicket(null);
+      return;
+    }
+    setSelectedTicketLoading(true);
+    const unsub = subscribeToTicket(
+      selectedTicketId,
+      (data) => {
+        setSelectedTicket(data);
+        setSelectedTicketLoading(false);
+      },
+      () => setSelectedTicketLoading(false)
+    );
+    return () => unsub();
+  }, [selectedTicketId]);
+
+  // Auto-scroll ticket messages
+  useEffect(() => {
+    ticketMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selectedTicket?.messages]);
+
+  // Send ticket reply
+  const handleSendTicketReply = async () => {
+    if (!ticketReply.trim() || !selectedTicket || !firebaseUser) return;
+    setTicketReplySending(true);
+    try {
+      await addTicketMessage(selectedTicket.id, {
+        senderId: firebaseUser.uid,
+        senderName: profile?.fullName || firebaseUser.displayName || 'Customer',
+        senderRole: 'customer',
+        text: ticketReply.trim(),
+      });
+      setTicketReply('');
+      toast.success('Reply sent');
+    } catch {
+      toast.error('Failed to send reply');
+    } finally {
+      setTicketReplySending(false);
+    }
+  };
 
   // Profile form changed?
   const profileChanged = profile
@@ -248,6 +361,7 @@ export default function AccountPage() {
     { id: 'orders', label: 'Order History', icon: Package },
     { id: 'wishlist', label: 'Wishlist', icon: Heart },
     { id: 'addresses', label: 'Saved Addresses', icon: MapPin },
+    { id: 'support', label: 'Support Tickets', icon: MessageSquare },
   ] as const;
 
   return (
@@ -610,6 +724,188 @@ export default function AccountPage() {
                     <p className="text-lg font-medium mb-2">No saved addresses</p>
                     <p className="text-sm text-gray-500 mb-6">Add your first delivery address.</p>
                     <button onClick={openAddAddress} className="inline-block bg-black text-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">Add Address</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── SUPPORT TAB ── */}
+            {activeTab === 'support' && (
+              <div className="animate-in fade-in duration-300">
+                {/* Ticket Detail View */}
+                {selectedTicketId ? (
+                  <div>
+                    <button
+                      onClick={() => { setSelectedTicketId(null); setSelectedTicket(null); }}
+                      className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors mb-6"
+                    >
+                      <ArrowLeft size={14} /> Back to Tickets
+                    </button>
+
+                    {selectedTicketLoading || !selectedTicket ? (
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                        <Skeleton className="h-32 w-full" />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Ticket Header */}
+                        <div className="mb-6">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h2 className="text-lg font-medium uppercase tracking-widest font-mono">{selectedTicket.ticketId}</h2>
+                            <span className={cn('inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest border', ticketStatusColor(selectedTicket.status))}>
+                              {selectedTicket.status}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-medium text-gray-800 mb-1">{selectedTicket.subject}</h3>
+                          <div className="flex flex-wrap gap-4 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                            <span>{ticketCategoryLabel(selectedTicket.category)}</span>
+                            {selectedTicket.orderId && <span>Order: {selectedTicket.orderId}</span>}
+                            <span>{formatTicketDate(selectedTicket.createdAt)}</span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="bg-[#F9F9F9] border border-gray-100 p-4 mb-6">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Original Description</p>
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{selectedTicket.description}</p>
+                        </div>
+
+                        {/* Conversation */}
+                        <div className="border border-gray-200">
+                          <div className="px-4 py-3 border-b border-gray-200 bg-[#F9F9F9]">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                              Conversation ({selectedTicket.messages.length})
+                            </h4>
+                          </div>
+
+                          <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+                            {selectedTicket.messages.length === 0 ? (
+                              <p className="text-center text-gray-400 text-sm py-6">No replies yet. We&apos;ll respond within 24 hours.</p>
+                            ) : (
+                              selectedTicket.messages.map((msg, idx) => (
+                                <div key={idx} className={cn('flex gap-3', msg.senderRole === 'customer' ? '' : 'flex-row-reverse')}>
+                                  <div className={cn(
+                                    'w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold',
+                                    msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-200 text-gray-600'
+                                  )}>
+                                    {msg.senderRole === 'admin' ? <Shield size={12} /> : <User size={12} />}
+                                  </div>
+                                  <div className={cn('flex-1 max-w-[80%]', msg.senderRole === 'admin' ? 'text-right' : '')}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-bold text-gray-700">{msg.senderName}</span>
+                                      <span className={cn(
+                                        'text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5',
+                                        msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'
+                                      )}>
+                                        {msg.senderRole}
+                                      </span>
+                                      <span className="text-[10px] text-gray-400">{formatTicketDateTime(msg.createdAt)}</span>
+                                    </div>
+                                    <div className={cn(
+                                      'p-3 text-sm whitespace-pre-wrap leading-relaxed',
+                                      msg.senderRole === 'admin'
+                                        ? 'bg-black text-white'
+                                        : 'bg-[#F9F9F9] border border-gray-200 text-gray-800'
+                                    )}>
+                                      {msg.text}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                            <div ref={ticketMessagesEndRef} />
+                          </div>
+
+                          {/* Reply box — only if ticket is still open */}
+                          {(selectedTicket.status === 'open' || selectedTicket.status === 'in-progress') && (
+                            <div className="px-4 py-3 border-t border-gray-200 bg-[#F9F9F9]">
+                              <div className="flex gap-3">
+                                <textarea
+                                  value={ticketReply}
+                                  onChange={(e) => setTicketReply(e.target.value)}
+                                  placeholder="Type your reply..."
+                                  rows={2}
+                                  className="flex-1 border border-gray-200 bg-white px-4 py-3 text-sm focus:outline-none focus:border-black transition-colors resize-none"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                      handleSendTicketReply();
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={handleSendTicketReply}
+                                  disabled={ticketReplySending || !ticketReply.trim()}
+                                  className="self-end bg-black text-white px-4 py-3 hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  {ticketReplySending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
+                            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 text-center">
+                              <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">This ticket is {selectedTicket.status}</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  /* Ticket List View */
+                  <div>
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+                      <h2 className="text-lg font-medium uppercase tracking-widest">Support Tickets</h2>
+                      <Link href="/support" className="text-xs font-bold uppercase tracking-widest text-black hover:text-gray-600 flex items-center gap-1">
+                        <Plus size={14} /> Raise Ticket
+                      </Link>
+                    </div>
+
+                    {ticketsLoading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="border border-gray-200 p-4">
+                            <Skeleton className="h-4 w-24 mb-3" />
+                            <Skeleton className="h-4 w-full mb-2" />
+                            <Skeleton className="h-4 w-2/3" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : tickets.length > 0 ? (
+                      <div className="space-y-4">
+                        {tickets.map((ticket) => (
+                          <button
+                            key={ticket.id}
+                            onClick={() => setSelectedTicketId(ticket.id)}
+                            className="w-full text-left border border-gray-200 p-4 hover:border-black transition-colors group"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-mono font-bold text-gray-800">{ticket.ticketId}</span>
+                              <span className={cn('inline-flex items-center px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest border', ticketStatusColor(ticket.status))}>
+                                {ticket.status}
+                              </span>
+                            </div>
+                            <p className="text-sm font-medium text-gray-900 mb-1 truncate group-hover:underline underline-offset-4">{ticket.subject}</p>
+                            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                              <span>{ticketCategoryLabel(ticket.category)}</span>
+                              <span>{formatTicketDate(ticket.createdAt)}</span>
+                              {ticket.messages.length > 0 && (
+                                <span className="flex items-center gap-1"><MessageSquare size={10} /> {ticket.messages.length}</span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 px-4 border border-gray-200 bg-[#F9F9F9]">
+                        <MessageSquare size={48} className="mx-auto text-gray-300 mb-4" />
+                        <p className="text-lg font-medium mb-2">No support tickets raised yet</p>
+                        <p className="text-sm text-gray-500 mb-6">Need help? Raise a support ticket and we&apos;ll get back to you.</p>
+                        <Link href="/support" className="inline-block bg-black text-white px-8 py-3 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">Raise a Ticket</Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -17,6 +17,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
+import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,7 +27,7 @@ const adminNavItems = [
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/reviews', label: 'Reviews', icon: Star },
-  { href: '/admin/tickets', label: 'Tickets', icon: MessageSquare },
+  { href: '/admin/tickets', label: 'Tickets', icon: MessageSquare, showTicketBadge: true },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -37,12 +38,24 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const [pendingCount, setPendingCount] = useState(0);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
 
   // Real-time pending badge
   useEffect(() => {
     const unsub = subscribeToAllOrders(
       (orders) => {
         setPendingCount(orders.filter((o) => o.status === 'pending').length);
+      },
+      () => { /* badge error — silently ignore */ }
+    );
+    return () => unsub();
+  }, []);
+
+  // Real-time open tickets badge
+  useEffect(() => {
+    const unsub = subscribeToAllTickets(
+      (tickets) => {
+        setOpenTicketCount(tickets.filter((t) => t.status === 'open' || t.status === 'in-progress').length);
       },
       () => { /* badge error — silently ignore */ }
     );
@@ -122,6 +135,14 @@ export default function AdminLayout({
                           isActive ? 'bg-white text-black' : 'bg-orange-500 text-white'
                         )}>
                           {pendingCount}
+                        </span>
+                      )}
+                      {(item as any).showTicketBadge && openTicketCount > 0 && (
+                        <span className={cn(
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                          isActive ? 'bg-white text-black' : 'bg-green-500 text-white'
+                        )}>
+                          {openTicketCount}
                         </span>
                       )}
                     </Link>

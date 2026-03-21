@@ -62,6 +62,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ─── TICKETS COLLECTION ────────────────────────────────────────────────────
+    // Authenticated users can create tickets.
+    // Users can read/update their own tickets; admins can read/update all.
+
+    match /tickets/{ticketId} {
+      allow create: if isAuthenticated();
+      // Individual document read
+      allow get: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      // Collection query
+      allow list: if isAuthenticated(); 
+      
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
+
     // ─── DEFAULT: DENY ALL ─────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
