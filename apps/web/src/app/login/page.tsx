@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
@@ -10,18 +10,35 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/';
 
-  const { loginWithEmail, loginWithGoogle, loading } = useAuthStore();
+  const { loginWithEmail, loginWithGoogle, logout, loading, firebaseUser, isAdmin } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Handle Admin Redirect Authorization Check
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      if (redirect.startsWith('/admin')) {
+        if (isAdmin === false) {
+          logout().then(() => {
+            setError('Access denied. You do not have admin privileges.');
+          });
+        } else if (isAdmin === true) {
+          router.push(redirect);
+        }
+      } else {
+        // Regular login flow
+        router.push(redirect);
+      }
+    }
+  }, [firebaseUser, isAdmin, loading, redirect, router, logout]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
       await loginWithEmail(email, password);
-      router.push(redirect);
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string };
       if (firebaseError.code === 'auth/invalid-credential') {
@@ -38,7 +55,6 @@ export default function LoginPage() {
     setError('');
     try {
       await loginWithGoogle();
-      router.push(redirect);
     } catch (err: unknown) {
       const firebaseError = err as { message?: string };
       setError(firebaseError.message || 'Google sign-in failed');

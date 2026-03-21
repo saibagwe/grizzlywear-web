@@ -10,7 +10,7 @@ import * as random from 'maath/random/dist/maath-random.esm';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { toast } from 'sonner';
-import { Truck, RotateCcw, ShieldCheck, MessageCircleHeart, Instagram } from 'lucide-react';
+import { Truck, RotateCcw, ShieldCheck, MessageCircleHeart, Instagram, Shield } from 'lucide-react';
 import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -387,6 +387,15 @@ export default function HomePage() {
           </form>
         </div>
       </section>
+
+      {/* Discreet Admin Access */}
+      <Link 
+        href="/login?redirect=/admin/dashboard"
+        className="fixed bottom-4 right-4 z-[100] p-1.5 text-gray-300/10 hover:text-gray-400/40 transition-all duration-1000 group"
+        aria-label="Admin Access"
+      >
+        <Shield size={8} />
+      </Link>
     </>
   );
 }

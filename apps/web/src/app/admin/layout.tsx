@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
 import {
   LayoutDashboard,
   Package,
@@ -37,8 +38,17 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { isAdmin, loading, initialized } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketCount, setOpenTicketCount] = useState(0);
+
+  // Protect Admin Routes (Client-side)
+  useEffect(() => {
+    if (initialized && !loading && !isAdmin) {
+      router.replace('/');
+    }
+  }, [initialized, loading, isAdmin, router]);
 
   // Real-time pending badge
   useEffect(() => {
@@ -61,6 +71,19 @@ export default function AdminLayout({
     );
     return () => unsub();
   }, []);
+
+  if (!initialized || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Verifying Admin Access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 pt-0">

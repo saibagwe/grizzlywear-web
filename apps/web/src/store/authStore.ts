@@ -126,7 +126,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           loading: false,
           user: userToCompat(user, isAdmin),
         });
+
+        // Set role cookie for middleware
+        if (isAdmin) {
+          Cookies.set('user-role', 'admin', { expires: 7, secure: location.protocol === 'https:', sameSite: 'strict' });
+        } else {
+          Cookies.remove('user-role');
+        }
       } else {
+        Cookies.remove('user-role');
         set({
           firebaseUser: null,
           profile: null,

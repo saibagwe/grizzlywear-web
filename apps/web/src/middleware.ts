@@ -8,10 +8,18 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('firebase-auth-token')?.value;
 
-  // Admin routes: must have token
-  if (ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
+  // Admin routes protection
+  if (pathname.startsWith('/admin')) {
     if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname.startsWith('/admin/dashboard') ? pathname : '/admin/dashboard');
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const role = request.cookies.get('user-role')?.value;
+    if (role !== 'admin') {
+      // Direct access without admin role -> landing page
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
