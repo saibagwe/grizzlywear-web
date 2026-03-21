@@ -1,6 +1,7 @@
 import {
   doc, getDoc, setDoc, updateDoc, serverTimestamp,
-  collection, getDocs, addDoc, deleteDoc, query, orderBy
+  collection, getDocs, addDoc, deleteDoc, query, orderBy, onSnapshot,
+  type Unsubscribe, type QuerySnapshot, type DocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -24,7 +25,53 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  return snap.data() as UserProfile;
+  return { uid: snap.id, ...snap.data() } as (UserProfile & { uid: string });
+}
+
+/**
+ * Subscribe to all users in real-time.
+ */
+export function subscribeToAllUsers(
+  onUpdate: (users: (UserProfile & { uid: string })[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap: QuerySnapshot) => {
+      const users = snap.docs.map(d => ({ uid: d.id, ...d.data() } as (UserProfile & { uid: string })));
+      onUpdate(users);
+    },
+    (err: Error) => {
+      console.error('[subscribeToAllUsers] Firestore error:', err);
+      onError?.(err);
+    }
+  );
+}
+
+/**
+ * Subscribe to a single user profile in real-time.
+ */
+export function subscribeToUserProfile(
+  uid: string,
+  onUpdate: (user: (UserProfile & { uid: string }) | null) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ref = doc(db, 'users', uid);
+  return onSnapshot(
+    ref,
+    (snap: DocumentSnapshot) => {
+      if (!snap.exists()) {
+        onUpdate(null);
+      } else {
+        onUpdate({ uid: snap.id, ...snap.data() } as (UserProfile & { uid: string }));
+      }
+    },
+    (err: Error) => {
+      console.error('[subscribeToUserProfile] Firestore error:', err);
+      onError?.(err);
+    }
+  );
 }
 
 /**
@@ -76,6 +123,29 @@ export async function getAddresses(uid: string): Promise<FirestoreAddress[]> {
   const q = query(ref, orderBy('createdAt', 'asc'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as FirestoreAddress));
+}
+
+/**
+ * Subscribe to a user's addresses in real-time.
+ */
+export function subscribeToUserAddresses(
+  uid: string,
+  onUpdate: (addresses: FirestoreAddress[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ref = collection(db, 'users', uid, 'addresses');
+  const q = query(ref, orderBy('createdAt', 'asc'));
+  return onSnapshot(
+    q,
+    (snap: QuerySnapshot) => {
+      const addresses = snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreAddress));
+      onUpdate(addresses);
+    },
+    (err: Error) => {
+      console.error('[subscribeToUserAddresses] Firestore error:', err);
+      onError?.(err);
+    }
+  );
 }
 
 /**
