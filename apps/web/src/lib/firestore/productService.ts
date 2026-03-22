@@ -37,7 +37,8 @@ export type FirestoreProduct = {
   fit: string;
   careInstructions: string[];
   features: string[];
-  stock: number;
+  stock: number | { [key: string]: number };
+  totalStock: number;
   isFeatured: boolean;
   isNew: boolean;
   inStock: boolean;
@@ -48,11 +49,19 @@ export type FirestoreProduct = {
   updatedAt?: unknown;
 };
 
-export type ProductInput = Omit<FirestoreProduct, 'id' | 'createdAt' | 'updatedAt'>;
+export type ProductInput = Omit<FirestoreProduct, 'id' | 'createdAt' | 'updatedAt' | 'totalStock'>;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function docToProduct(id: string, data: DocumentData): FirestoreProduct {
+  const stockData = data.stock ?? 0;
+  let totalStock = 0;
+  if (typeof stockData === 'number') {
+    totalStock = stockData;
+  } else if (typeof stockData === 'object' && stockData !== null) {
+    totalStock = Object.values(stockData as Record<string, number>).reduce((acc, curr) => acc + (curr || 0), 0);
+  }
+
   return {
     id,
     name: data.name ?? '',
@@ -71,10 +80,11 @@ function docToProduct(id: string, data: DocumentData): FirestoreProduct {
     fit: data.fit ?? '',
     careInstructions: data.careInstructions ?? [],
     features: data.features ?? [],
-    stock: data.stock ?? 0,
+    stock: stockData,
+    totalStock,
     isFeatured: data.isFeatured ?? false,
     isNew: data.isNew ?? false,
-    inStock: data.inStock ?? (data.stock > 0),
+    inStock: data.inStock ?? (totalStock > 0),
     rating: data.rating ?? 0,
     reviewCount: data.reviewCount ?? 0,
     tags: data.tags ?? [],

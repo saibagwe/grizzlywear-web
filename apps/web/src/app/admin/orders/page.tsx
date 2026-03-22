@@ -2,10 +2,25 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, ArrowUpRight, TrendingUp, ShoppingCart, IndianRupee, Clock, ChevronDown, AlertCircle } from 'lucide-react';
+import { 
+  Search, 
+  ArrowUpRight, 
+  TrendingUp, 
+  ShoppingCart, 
+  IndianRupee, 
+  Clock, 
+  ChevronDown, 
+  AlertCircle,
+  Copy,
+  Calendar,
+  CheckCircle2,
+  Package,
+  CalendarDays
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { type QueryDocumentSnapshot } from 'firebase/firestore';
+import Image from 'next/image';
 import {
   subscribeToAllOrders,
   subscribeToMoreOrders,
@@ -17,395 +32,464 @@ import {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS: { value: '' | OrderStatus; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
+const STATUS_OPTIONS: { value: '' | OrderStatus; label: string; color: string }[] = [
+  { value: '', label: 'All', color: 'bg-gray-100 text-gray-700' },
+  { value: 'pending', label: 'Pending', color: 'bg-orange-100 text-orange-700' },
+  { value: 'processing', label: 'Processing', color: 'bg-blue-100 text-blue-700' },
+  { value: 'shipped', label: 'Shipped', color: 'bg-purple-100 text-purple-700' },
+  { value: 'delivered', label: 'Delivered', color: 'bg-green-100 text-green-700' },
+  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-700' },
 ];
 
-// ─── HELPER FUNTIONS ──────────────────────────────────────────────────────────
+const QUICK_FILTERS = [
+  { label: 'Today', days: 0 },
+  { label: 'Yesterday', days: 1 },
+  { label: 'Last 7 Days', days: 7 },
+  { label: 'Last 30 Days', days: 30 },
+  { label: 'This Month', type: 'month' as const },
+];
 
-function statusColor(status: string) {
-  switch (status) {
-    case 'delivered':   return 'bg-green-100 text-green-800';
-    case 'shipped':     return 'bg-blue-100 text-blue-800';
-    case 'processing':  return 'bg-yellow-100 text-yellow-800';
-    case 'cancelled':   return 'bg-red-100 text-red-800';
-    default:            return 'bg-gray-100 text-gray-700';
-  }
-}
+// ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────────
 
-function paymentColor(status: string) {
-  switch (status) {
-    case 'paid':     return 'text-green-700 bg-green-50';
-    case 'refunded': return 'text-blue-700 bg-blue-50';
-    default:         return 'text-yellow-700 bg-yellow-50';
-  }
-}
-
-function formatDate(ts: any): string {
-  if (!ts) return '—';
+function formatDate(ts: any): { date: string, time: string } {
+  if (!ts) return { date: '—', time: '—' };
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return {
+    date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+  };
 }
 
-// ─── SKELETON ROW ─────────────────────────────────────────────────────────────
-
-function SkeletonRow() {
-  return (
-    <tr className="border-b border-gray-100">
-      <td className="px-6 py-4"><div className="h-3.5 w-28 bg-gray-200 animate-pulse rounded" /></td>
-      <td className="px-6 py-4">
-        <div className="h-3, w-32 bg-gray-200 animate-pulse rounded mb-1.5" />
-        <div className="h-2.5 w-24 bg-gray-100 animate-pulse rounded" />
-      </td>
-      <td className="px-6 py-4"><div className="h-3 w-20 bg-gray-200 animate-pulse rounded" /></td>
-      <td className="px-6 py-4"><div className="h-3 w-12 bg-gray-200 animate-pulse rounded" /></td>
-      <td className="px-6 py-4"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded" /></td>
-      <td className="px-6 py-4"><div className="h-6 w-24 bg-gray-200 animate-pulse rounded" /></td>
-      <td className="px-6 py-4 text-right"><div className="h-3 w-16 bg-gray-200 animate-pulse rounded ml-auto" /></td>
-      <td className="px-6 py-4 text-right"><div className="h-3 w-10 bg-gray-200 animate-pulse rounded ml-auto" /></td>
-    </tr>
-  );
-}
+// ─── SKELETON LOADERS ──────────────────────────────────────────────────────────
 
 function SkeletonStat() {
   return (
-    <div className="bg-white border border-gray-200 p-5">
-      <div className="h-3 w-20 bg-gray-200 animate-pulse rounded mb-3" />
-      <div className="h-7 w-24 bg-gray-200 animate-pulse rounded" />
+    <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-gray-100">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-full bg-gray-50 animate-pulse" />
+        <div className="h-4 w-20 bg-gray-100 animate-pulse rounded" />
+      </div>
+      <div className="h-8 w-24 bg-gray-50 animate-pulse rounded" />
     </div>
   );
 }
 
-// ─── PAGE ─────────────────────────────────────────────────────────────────────
+function SkeletonRow() {
+  return (
+    <tr className="border-b border-gray-100/50">
+      <td className="px-6 py-5"><div className="h-4 w-24 bg-gray-50 animate-pulse rounded" /></td>
+      <td className="px-6 py-5">
+        <div className="h-4 w-32 bg-gray-50 animate-pulse rounded mb-2" />
+        <div className="h-3 w-24 bg-gray-50/50 animate-pulse rounded" />
+      </td>
+      <td className="px-6 py-5">
+        <div className="h-4 w-20 bg-gray-50 animate-pulse rounded mb-1" />
+        <div className="h-3 w-16 bg-gray-50/50 animate-pulse rounded" />
+      </td>
+      <td className="px-6 py-5"><div className="h-10 w-10 bg-gray-50 animate-pulse rounded" /></td>
+      <td className="px-6 py-5"><div className="h-6 w-16 bg-gray-50 animate-pulse rounded-full" /></td>
+      <td className="px-6 py-5"><div className="h-6 w-20 bg-gray-50 animate-pulse rounded-full" /></td>
+      <td className="px-6 py-5 text-right"><div className="h-4 w-16 bg-gray-50 animate-pulse rounded ml-auto" /></td>
+      <td className="px-6 py-5 text-right"><div className="h-8 w-20 bg-gray-50 animate-pulse rounded ml-auto" /></td>
+    </tr>
+  );
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders]             = useState<FirestoreOrder[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [fetchError, setFetchError]     = useState<string | null>(null);
-  const [searchTerm, setSearchTerm]     = useState('');
+  const [orders, setOrders] = useState<FirestoreOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | OrderStatus>('');
-  const [updatingId, setUpdatingId]     = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  
+  // Date Filtering
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
 
   // Pagination
-  const [lastDoc, setLastDoc]           = useState<QueryDocumentSnapshot | null>(null);
-  const [moreOrders, setMoreOrders]     = useState<FirestoreOrder[]>([]);
-  const [lastMoreDoc, setLastMoreDoc]   = useState<QueryDocumentSnapshot | null>(null);
-  const [hasMore, setHasMore]           = useState(false);
-  const [loadingMore, setLoadingMore]   = useState(false);
-  const moreUnsubRef                    = useRef<(() => void) | null>(null);
-  const timeoutRef                      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [moreOrders, setMoreOrders] = useState<FirestoreOrder[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const moreUnsubRef = useRef<(() => void) | null>(null);
 
-  const clearLoadingTimeout = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, []);
-
-  // ── Initial real-time subscription (first 50) ──
+  // Initial Subscription
   useEffect(() => {
-    setFetchError(null);
-    setLoading(true);
-
-    // Safety net: if Firestore hasn't responded in 10 s, stop the skeleton.
-    timeoutRef.current = setTimeout(() => {
-      console.warn('[AdminOrders] 10 s timeout — stopping skeleton.');
-      setLoading(false);
-    }, 10_000);
-
     const unsub = subscribeToAllOrders(
       (data, last) => {
-        clearLoadingTimeout();
-        console.log('[AdminOrders] snapshot received, count:', data.length);
         setOrders(data);
         setLastDoc(last);
         setHasMore(data.length === ORDERS_PAGE_SIZE);
-        setFetchError(null);
         setLoading(false);
       },
       (err) => {
-        clearLoadingTimeout();
-        console.error('[AdminOrders] Firestore error:', err);
-        setFetchError(`Firestore error (${(err as any).code ?? 'unknown'}): ${err.message}`);
+        setFetchError(err.message);
         setLoading(false);
       }
     );
+    return () => unsub();
+  }, []);
 
-    return () => {
-      clearLoadingTimeout();
-      unsub();
-    };
-  }, [clearLoadingTimeout]);
-
-  // ── Load more ──
   const handleLoadMore = () => {
     if (!lastDoc || loadingMore) return;
     setLoadingMore(true);
-
-    // Unsubscribe previous "more" listener
     if (moreUnsubRef.current) moreUnsubRef.current();
-
-    const unsub = subscribeToMoreOrders(
-      lastDoc,
-      (data, last) => {
-        setMoreOrders((prev) => {
-          // Merge: remove old entries from this cursor, append new
-          const existingIds = new Set(prev.map((o) => o.id));
-          const merged = [...prev, ...data.filter((o) => !existingIds.has(o.id))];
-          return merged;
-        });
-        setLastMoreDoc(last);
-        setHasMore(data.length === ORDERS_PAGE_SIZE);
-        setLoadingMore(false);
-      },
-      (err) => {
-        console.error('[AdminOrders] load-more error:', err);
-        toast.error(`Failed to load more orders: ${err.message}`);
-        setLoadingMore(false);
-      }
-    );
-    moreUnsubRef.current = unsub;
+    moreUnsubRef.current = subscribeToMoreOrders(lastDoc, (data, last) => {
+      setMoreOrders(prev => [...prev, ...data]);
+      setLastDoc(last);
+      setHasMore(data.length === ORDERS_PAGE_SIZE);
+      setLoadingMore(false);
+    }, () => setLoadingMore(false));
   };
 
-  // Cleanup more-listener on unmount
-  useEffect(() => () => { if (moreUnsubRef.current) moreUnsubRef.current(); }, []);
-
-  // ── Combined list ──
   const allOrders = useMemo(() => {
-    const seen = new Set(orders.map((o) => o.id));
-    return [...orders, ...moreOrders.filter((o) => !seen.has(o.id))];
+    const seen = new Set(orders.map(o => o.id));
+    return [...orders, ...moreOrders.filter(o => !seen.has(o.id))];
   }, [orders, moreOrders]);
 
-  // ── Filtered view ──
   const filtered = useMemo(() => {
-    return allOrders.filter((o) => {
-      const matchSearch =
-        !searchTerm ||
+    let result = allOrders;
+
+    // Search
+    if (searchTerm) {
+      result = result.filter(o => 
         o.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = !statusFilter || o.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [allOrders, searchTerm, statusFilter]);
+        o.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-  // ── Summary stats ──
-  const totalRevenue  = allOrders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0);
-  const pendingCount  = allOrders.filter((o) => o.status === 'pending').length;
+    // Status
+    if (statusFilter) {
+      result = result.filter(o => o.status === statusFilter);
+    }
 
-  // ── Inline status update ──
-  const handleStatusChange = async (order: FirestoreOrder, newStatus: OrderStatus) => {
-    setUpdatingId(order.id);
+    // Dates
+    if (fromDate || toDate) {
+      result = result.filter(o => {
+        const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+        if (fromDate && orderDate < new Date(fromDate)) return false;
+        if (toDate) {
+          const end = new Date(toDate);
+          end.setHours(23, 59, 59, 999);
+          if (orderDate > end) return false;
+        }
+        return true;
+      });
+    }
+
+    return result;
+  }, [allOrders, searchTerm, statusFilter, fromDate, toDate]);
+
+  // Quick Filter Logic
+  const handleQuickFilter = (filter: typeof QUICK_FILTERS[0]) => {
+    if (activeQuickFilter === filter.label) {
+      setActiveQuickFilter(null);
+      setFromDate('');
+      setToDate('');
+      return;
+    }
+
+    setActiveQuickFilter(filter.label);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    if (filter.days === 0) {
+      setFromDate(today.toISOString().split('T')[0]);
+      setToDate(today.toISOString().split('T')[0]);
+    } else if (filter.days) {
+      const start = new Date(today);
+      start.setDate(today.getDate() - filter.days);
+      setFromDate(start.toISOString().split('T')[0]);
+      setToDate(today.toISOString().split('T')[0]);
+    } else if (filter.type === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setFromDate(start.toISOString().split('T')[0]);
+      setToDate(today.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    setUpdatingId(orderId);
     try {
-      await updateOrderStatus(order.id, newStatus);
-      toast.success(`Order ${order.orderId} → ${newStatus}`);
+      await updateOrderStatus(orderId, newStatus);
+      toast.success('Order status updated');
     } catch {
-      toast.error('Failed to update status.');
+      toast.error('Failed to update status');
     } finally {
       setUpdatingId(null);
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Order ID copied');
+  };
+
+  // Stats calculation
+  const stats = useMemo(() => {
+    const total = allOrders.length;
+    const pending = allOrders.filter(o => o.status === 'pending').length;
+    const delivered = allOrders.filter(o => o.status === 'delivered').length;
+    const revenue = allOrders.filter(o => o.status !== 'cancelled').reduce((acc, o) => acc + o.total, 0);
+    return { total, pending, delivered, revenue };
+  }, [allOrders]);
+
   return (
-    <div>
-      {/* ── Header ── */}
+    <div className="min-h-screen bg-[#F8F9FA] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+      {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Orders</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {loading
-              ? 'Loading orders…'
-              : fetchError
-              ? 'Error loading orders'
-              : `${allOrders.length} orders — live real-time`}
-          </p>
+          <h1 className="text-3xl font-bold text-[#1A1A2E] tracking-tight">Orders Management</h1>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Monitor and process your store's sales records</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#1A1A2E]">Live Updates Active</span>
         </div>
       </div>
 
-      {/* ── Error Banner ── */}
-      {!loading && fetchError && (
-        <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 px-4 py-3 rounded">
-          <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-red-700">Failed to load orders</p>
-            <p className="text-xs text-red-600 mt-0.5 font-mono">{fetchError}</p>
-            <p className="text-xs text-red-500 mt-1">
-              Check Firestore rules, indexes, and your network connection.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        {loading ? (
-          [1, 2, 3, 4].map((i) => <SkeletonStat key={i} />)
-        ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {loading ? [1, 2, 3, 4].map(i => <SkeletonStat key={i} />) : (
           <>
-            <div className="bg-white border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <ShoppingCart size={16} className="text-gray-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Total Orders</span>
+            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-black hover:translate-y-[-2px] transition-transform">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-black">
+                  <Package size={20} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Orders</span>
               </div>
-              <p className="text-2xl font-light tracking-tight">{allOrders.length}</p>
+              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.total}</p>
             </div>
-            <div className="bg-white border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <IndianRupee size={16} className="text-gray-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Revenue</span>
+            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-orange-500 hover:translate-y-[-2px] transition-transform">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
+                  <Clock size={20} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Pending</span>
               </div>
-              <p className="text-2xl font-light tracking-tight">₹{totalRevenue.toLocaleString('en-IN')}</p>
+              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.pending}</p>
             </div>
-            <div className={cn('border p-5', pendingCount > 0 ? 'bg-orange-50/30 border-orange-200' : 'bg-white border-gray-200')}>
-              <div className="flex items-center gap-2 mb-2">
-                <Clock size={16} className={pendingCount > 0 ? 'text-orange-400' : 'text-gray-400'} />
-                <span className={cn('text-[10px] font-bold uppercase tracking-widest', pendingCount > 0 ? 'text-orange-600' : 'text-gray-500')}>Pending</span>
+            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-green-500 hover:translate-y-[-2px] transition-transform">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-500">
+                  <IndianRupee size={20} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Revenue</span>
               </div>
-              <p className={cn('text-2xl font-light tracking-tight', pendingCount > 0 ? 'text-orange-700' : '')}>{pendingCount}</p>
+              <p className="text-3xl font-bold text-[#1A1A2E]">₹{stats.revenue.toLocaleString('en-IN')}</p>
             </div>
-            <div className="bg-white border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={16} className="text-gray-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Showing</span>
+            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8_rgba(0,0,0,0.08)] border-l-4 border-blue-500 hover:translate-y-[-2px] transition-transform">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                  <CheckCircle2 size={20} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Delivered</span>
               </div>
-              <p className="text-2xl font-light tracking-tight">{filtered.length}</p>
+              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.delivered}</p>
             </div>
           </>
         )}
       </div>
 
-      <div className="bg-white border border-gray-200">
-        {/* ── Filters ── */}
-        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[#F9F9F9]">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search orders, customers…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-gray-200 bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setStatusFilter(opt.value as '' | OrderStatus)}
-                className={cn(
-                  'px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border transition-colors',
-                  statusFilter === opt.value
-                    ? 'bg-black text-white border-black'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-black'
-                )}
-              >
-                {opt.label}
-                {opt.value === 'pending' && pendingCount > 0 && !loading && (
-                  <span className="ml-1.5 bg-orange-500 text-white rounded-full px-1.5 text-[9px]">
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
-            ))}
+      {/* ── Filters Section ── */}
+      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 p-6 mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4 flex-1 max-w-2xl">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search Order ID, name or email..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-[#F8F9FA] border-none rounded-lg pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all"
+              />
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-40">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input 
+                  type="date" 
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="w-full bg-[#F8F9FA] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
+                />
+              </div>
+              <span className="text-gray-400 text-xs font-bold">TO</span>
+              <div className="relative flex-1 sm:w-40">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input 
+                  type="date" 
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="w-full bg-[#F8F9FA] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ── Table ── */}
+        <div className="flex flex-wrap items-center gap-8 border-t border-gray-50 pt-6">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={14} className="text-gray-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">Quick:</span>
+            <div className="flex flex-wrap gap-2">
+              {QUICK_FILTERS.map(q => (
+                <button 
+                  key={q.label}
+                  onClick={() => handleQuickFilter(q)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border",
+                    activeQuickFilter === q.label 
+                      ? "bg-black text-white border-black shadow-lg" 
+                      : "bg-white text-gray-500 border-gray-100 hover:border-black"
+                  )}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter size={14} className="text-gray-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">Status:</span>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map(opt => (
+                <button 
+                  key={opt.value}
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border",
+                    statusFilter === opt.value
+                      ? "bg-black text-white border-black shadow-lg" 
+                      : "bg-white text-gray-500 border-gray-100 hover:border-black"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Orders Table ── */}
+      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#F9F9F9] text-[10px] uppercase font-bold tracking-widest text-gray-500 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4">Order ID</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Items</th>
-                <th className="px-6 py-4">Payment</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Total</th>
-                <th className="px-6 py-4 text-right">Details</th>
+          <table className="w-full text-left whitespace-nowrap">
+            <thead>
+              <tr className="bg-[#F8F9FA] border-b border-gray-100 text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+                <th className="px-6 py-5">Order ID</th>
+                <th className="px-6 py-5">Customer</th>
+                <th className="px-6 py-5">Date & Time</th>
+                <th className="px-6 py-5">Items</th>
+                <th className="px-6 py-5">Payment</th>
+                <th className="px-6 py-5">Status</th>
+                <th className="px-6 py-5 text-right">Total</th>
+                <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                // ── Skeleton rows ──
-                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-24 text-center">
-                    <p className="text-gray-400 font-light uppercase tracking-widest text-sm mb-1">
-                      {searchTerm || statusFilter ? 'No results found' : 'No Orders Yet'}
-                    </p>
-                    <p className="text-gray-400 text-xs">
-                      {searchTerm || statusFilter
-                        ? 'Try a different search or filter.'
-                        : 'Orders will appear here in real-time as customers check out.'}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
+            <tbody className="divide-y divide-gray-50">
+              {loading ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />) : 
+               filtered.length === 0 ? (
+                 <tr>
+                   <td colSpan={8} className="py-32 text-center">
+                     <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                          <ShoppingCart size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-[#1A1A2E]">No orders found</h3>
+                        <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search terms</p>
+                     </div>
+                   </td>
+                 </tr>
+               ) : (
                 filtered.map((order) => {
-                  const itemCount = order.items.reduce((acc, i) => acc + i.quantity, 0);
+                  const { date, time } = formatDate(order.createdAt);
                   const isUpdating = updatingId === order.id;
                   return (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <Link
-                          href={`/admin/orders/${order.id}`}
-                          className="font-medium text-black hover:underline underline-offset-4 flex items-center gap-1 font-mono text-xs"
-                        >
-                          {order.orderId}
-                          <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900 max-w-[160px] truncate">{order.customerName || '—'}</p>
-                        <p className="text-[10px] text-gray-500 max-w-[160px] truncate">{order.customerEmail || '—'}</p>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
-                      <td className="px-6 py-4 text-gray-600">{itemCount} item{itemCount !== 1 ? 's' : ''}</td>
-                      <td className="px-6 py-4">
-                        <span className={cn('inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest', paymentColor(order.paymentStatus))}>
-                          {order.paymentStatus}
-                        </span>
-                        <p className="text-[10px] text-gray-400 mt-0.5 capitalize">
-                          {order.paymentMethod === 'razorpay' ? 'Online' : order.paymentMethod}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4">
-                        {isUpdating ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-[10px] text-gray-400 uppercase tracking-widest">Saving…</span>
-                          </div>
-                        ) : (
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
-                            className={cn(
-                              'appearance-none bg-transparent border px-2 py-1 text-[10px] font-bold uppercase tracking-widest cursor-pointer focus:outline-none',
-                              statusColor(order.status)
-                            )}
+                    <tr key={order.id} className="hover:bg-[#F8F9FA]/60 transition-colors group">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-gray-900">{order.orderId}</span>
+                          <button 
+                            onClick={() => copyToClipboard(order.orderId)}
+                            className="p-1 hover:bg-white rounded text-gray-400 hover:text-black transition-all opacity-0 group-hover:opacity-100"
                           >
-                            {STATUS_OPTIONS.filter((o) => o.value !== '').map((o) => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-                        )}
+                            <Copy size={12} />
+                          </button>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-900 text-right font-medium">
-                        ₹{order.total.toLocaleString('en-IN')}
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-[#1A1A2E]">{order.customerName}</span>
+                          <span className="text-[11px] text-gray-400 font-medium">{order.customerEmail}</span>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          href={`/admin/orders/${order.id}`}
-                          className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors"
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-[#1A1A2E]">{date}</span>
+                          <span className="text-[11px] text-gray-400 font-medium uppercase">{time}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center -space-x-3 overflow-hidden">
+                          {order.items.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="relative w-8 h-10 bg-gray-100 border-2 border-white rounded-sm overflow-hidden flex-shrink-0">
+                              {item.imageUrl ? (
+                                <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-300">P</div>
+                              )}
+                            </div>
+                          ))}
+                          {order.items.length > 3 && (
+                            <div className="relative w-8 h-10 bg-black text-white text-[10px] flex items-center justify-center border-2 border-white rounded-sm font-bold flex-shrink-0">
+                              +{order.items.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col gap-1">
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider w-fit",
+                            order.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                          )}>
+                            {order.paymentStatus}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <select 
+                          value={order.status}
+                          disabled={isUpdating}
+                          onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
+                          className={cn(
+                            "appearance-none px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest cursor-pointer focus:outline-none border-none shadow-sm transition-all min-w-[120px] text-center",
+                            STATUS_OPTIONS.find(opt => opt.value === order.status)?.color || "bg-gray-100 text-gray-700"
+                          )}
                         >
-                          View →
+                          {STATUS_OPTIONS.filter(o => o.value).map(opt => (
+                            <option key={opt.value} value={opt.value} className="text-black bg-white">{opt.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <span className="text-sm font-bold text-[#1A1A2E]">₹{order.total.toLocaleString('en-IN')}</span>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <Link 
+                          href={`/admin/orders/${order.id}`}
+                          className="px-6 py-2.5 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-gray-800 transition-all opacity-0 group-hover:opacity-100 shadow-md"
+                        >
+                          View Details
                         </Link>
                       </td>
                     </tr>
@@ -416,27 +500,41 @@ export default function AdminOrdersPage() {
           </table>
         </div>
 
-        {/* ── Footer: Load More + Count ── */}
-        <div className="p-4 border-t border-gray-200 bg-[#F9F9F9] flex items-center justify-between gap-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
-            {loading ? 'Loading…' : `Showing ${filtered.length} of ${allOrders.length} orders`}
-          </p>
-          {!loading && hasMore && (
-            <button
+        {/* ── Table Footer ── */}
+        <div className="px-6 py-6 bg-[#F8F9FA] border-t border-gray-50 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">
+            {loading ? 'Processing...' : `Showing ${filtered.length} of ${allOrders.length} records`}
+          </span>
+          {hasMore && !loading && (
+            <button 
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest border border-gray-200 bg-white hover:border-black transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-6 py-3 bg-white text-black border border-gray-200 rounded-lg text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-gray-50 transition-all shadow-sm"
             >
-              {loadingMore ? (
-                <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <ChevronDown size={14} />
-              )}
-              {loadingMore ? 'Loading…' : 'Load More Orders'}
+              {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={14} />}
+              Load More Results
             </button>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function Filter({ size, className }: { size: number, className?: string }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+    >
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
   );
 }

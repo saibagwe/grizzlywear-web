@@ -19,12 +19,13 @@ import {
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
+import { subscribeToInventory } from '@/lib/firestore/inventoryService';
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, showBadge: true },
-  { href: '/admin/inventory', label: 'Inventory', icon: Warehouse },
+  { href: '/admin/inventory', label: 'Inventory', icon: Warehouse, showLowStockBadge: true },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/reviews', label: 'Reviews', icon: Star },
@@ -42,6 +43,7 @@ export default function AdminLayout({
   const { isAdmin, loading, initialized } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketCount, setOpenTicketCount] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   // Protect Admin Routes (Client-side)
   useEffect(() => {
@@ -69,6 +71,15 @@ export default function AdminLayout({
       },
       () => { /* badge error — silently ignore */ }
     );
+    return () => unsub();
+  }, []);
+
+  // Real-time low stock badge
+  useEffect(() => {
+    const unsub = subscribeToInventory((items) => {
+      const lowStock = items.filter((item) => item.totalStock < item.lowStockThreshold);
+      setLowStockCount(lowStock.length);
+    });
     return () => unsub();
   }, []);
 
@@ -166,6 +177,14 @@ export default function AdminLayout({
                           isActive ? 'bg-white text-black' : 'bg-green-500 text-white'
                         )}>
                           {openTicketCount}
+                        </span>
+                      )}
+                      {(item as any).showLowStockBadge && lowStockCount > 0 && (
+                        <span className={cn(
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                          isActive ? 'bg-white text-black' : 'bg-red-500 text-white'
+                        )}>
+                          {lowStockCount}
                         </span>
                       )}
                     </Link>
