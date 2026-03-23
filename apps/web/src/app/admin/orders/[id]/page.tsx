@@ -111,7 +111,7 @@ export default function AdminOrderDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-gray-400" />
+        <Loader2 size={32} className="animate-spin text-[var(--text-muted)]" />
       </div>
     );
   }
@@ -119,7 +119,7 @@ export default function AdminOrderDetailPage() {
   if (notFound || !order) {
     return (
       <div className="text-center py-20">
-        <p className="text-xl font-light uppercase tracking-widest text-gray-400 mb-4">Order not found</p>
+        <p className="text-xl font-light uppercase tracking-widest text-[var(--text-muted)] mb-4">Order not found</p>
         <Link href="/admin/orders" className="text-xs font-bold uppercase tracking-widest underline underline-offset-4">
           ← Back to Orders
         </Link>
@@ -134,12 +134,12 @@ export default function AdminOrderDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <Link href="/admin/orders" className="w-10 h-10 flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition-colors">
+          <Link href="/admin/orders" className="w-10 h-10 flex items-center justify-center border border-[var(--border)] hover:bg-[var(--bg)] transition-colors">
             <ArrowLeft size={16} />
           </Link>
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-semibold text-gray-900 tracking-tight font-mono">{order.orderId}</h1>
+              <h1 className="text-2xl font-semibold text-[var(--text-primary)] tracking-tight font-mono">{order.orderId}</h1>
               <span className={cn('inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest', statusBadgeClass(order.status))}>
                 {order.status}
               </span>
@@ -147,12 +147,12 @@ export default function AdminOrderDetailPage() {
                 {order.paymentStatus}
               </span>
             </div>
-            <p className="text-sm text-gray-500 mt-1">Placed on {formatDate(order.createdAt)}</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Placed on {formatDate(order.createdAt)}</p>
           </div>
         </div>
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-600 bg-white border border-gray-200 px-4 py-2 hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] bg-[var(--bg-card)] border border-[var(--border)] px-4 py-2 hover:bg-[var(--bg)] transition-colors"
         >
           <Printer size={14} /> Print
         </button>
@@ -164,16 +164,16 @@ export default function AdminOrderDetailPage() {
         <div className="lg:col-span-2 space-y-8">
 
           {/* Items */}
-          <div className="bg-white border border-gray-200">
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)]">
+            <div className="p-6 border-b border-[var(--border)]">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">
                 Order Items ({order.items.length})
               </h2>
             </div>
             <div className="p-6 space-y-6">
               {order.items.map((item, index) => (
                 <div key={index} className="flex gap-4 pb-6 border-b border-gray-50 last:border-0 last:pb-0">
-                  <div className="relative w-20 h-24 flex-shrink-0 bg-gray-100 border border-gray-200">
+                  <div className="relative w-20 h-24 flex-shrink-0 bg-gray-100 border border-[var(--border)]">
                     {item.image ? (
                       <Image src={item.image} alt={item.name} fill className="object-cover" />
                     ) : (
@@ -183,15 +183,15 @@ export default function AdminOrderDetailPage() {
                   <div className="flex-1 flex flex-col justify-between">
                     <div className="flex justify-between items-start gap-4">
                       <div>
-                        <p className="font-medium text-black">{item.name}</p>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">
+                        <p className="font-medium text-[var(--text-primary)]">{item.name}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mt-1">
                           Size: {item.size} • Qty: {item.quantity}
                         </p>
                       </div>
                       <p className="font-medium text-right whitespace-nowrap">₹{item.price.toLocaleString('en-IN')}</p>
                     </div>
                     <div className="flex justify-between items-end mt-auto pt-2">
-                      <p className="text-xs text-gray-500 font-medium">Unit price</p>
+                      <p className="text-xs text-[var(--text-secondary)] font-medium">Unit price</p>
                       <p className="font-bold">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
                     </div>
                   </div>
@@ -200,13 +200,13 @@ export default function AdminOrderDetailPage() {
             </div>
 
             {/* Totals */}
-            <div className="bg-[#F9F9F9] p-6 border-t border-gray-200 space-y-3 text-sm">
+            <div className="bg-[#F9F9F9] p-6 border-t border-[var(--border)] space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Subtotal</span>
+                <span className="text-[var(--text-secondary)]">Subtotal</span>
                 <span className="font-medium">₹{order.subtotal.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Shipping</span>
+                <span className="text-[var(--text-secondary)]">Shipping</span>
                 <span className="font-medium">
                   {order.shipping === 0 ? <span className="text-green-600 font-bold text-xs uppercase">Free</span> : `₹${order.shipping.toLocaleString('en-IN')}`}
                 </span>
@@ -217,16 +217,16 @@ export default function AdminOrderDetailPage() {
                   <span className="font-bold">-₹{order.discount.toLocaleString('en-IN')}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center border-t border-gray-200 pt-3 mt-3">
+              <div className="flex justify-between items-center border-t border-[var(--border)] pt-3 mt-3">
                 <span className="text-sm font-bold uppercase tracking-widest">Total</span>
-                <span className="text-xl font-medium text-black">₹{order.total.toLocaleString('en-IN')}</span>
+                <span className="text-xl font-medium text-[var(--text-primary)]">₹{order.total.toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
 
           {/* Update Status */}
-          <div className="bg-white border border-gray-200 p-6 space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 border-b border-gray-100 pb-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">
               Update Order Status
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -238,7 +238,7 @@ export default function AdminOrderDetailPage() {
                     'px-4 py-2 text-[10px] font-bold uppercase tracking-widest border transition-colors',
                     selectedStatus === s
                       ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-black'
+                      : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-black'
                   )}
                 >
                   {s}
@@ -256,8 +256,8 @@ export default function AdminOrderDetailPage() {
           </div>
 
           {/* Update Payment Status */}
-          <div className="bg-white border border-gray-200 p-6 space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 border-b border-gray-100 pb-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">
               Update Payment Status
             </h2>
             <div className="flex gap-2">
@@ -269,7 +269,7 @@ export default function AdminOrderDetailPage() {
                     'px-4 py-2 text-[10px] font-bold uppercase tracking-widest border transition-colors',
                     selectedPayment === s
                       ? 'bg-black text-white border-black'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-black'
+                      : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-black'
                   )}
                 >
                   {s}
@@ -291,32 +291,32 @@ export default function AdminOrderDetailPage() {
         <div className="lg:col-span-1 space-y-6">
 
           {/* Customer */}
-          <div className="bg-white border border-gray-200 p-6 space-y-5">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 border-b border-gray-100 pb-4">Customer</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">Customer</h2>
             <div className="space-y-4 text-sm">
               <div className="flex items-start gap-3">
-                <Mail size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                <Mail size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-black">{order.customerName || '—'}</p>
+                  <p className="font-medium text-[var(--text-primary)]">{order.customerName || '—'}</p>
                   <p className="text-blue-600 hover:underline cursor-pointer text-xs mt-0.5">{order.customerEmail || '—'}</p>
                 </div>
               </div>
               {order.customerPhone && (
                 <div className="flex items-start gap-3">
-                  <Phone size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-gray-600">{order.customerPhone}</p>
+                  <Phone size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
+                  <p className="text-[var(--text-secondary)]">{order.customerPhone}</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Shipping Address */}
-          <div className="bg-white border border-gray-200 p-6 space-y-5">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 border-b border-gray-100 pb-4">Shipping Address</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">Shipping Address</h2>
             <div className="flex items-start gap-3 text-sm">
-              <MapPin size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="text-gray-600 space-y-0.5">
-                <p className="font-medium text-black">{order.shippingAddress.name}</p>
+              <MapPin size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
+              <div className="text-[var(--text-secondary)] space-y-0.5">
+                <p className="font-medium text-[var(--text-primary)]">{order.shippingAddress.name}</p>
                 <p>{order.shippingAddress.address}</p>
                 <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p>
                 <p>{order.shippingAddress.country}</p>
@@ -326,27 +326,27 @@ export default function AdminOrderDetailPage() {
               </div>
             </div>
             <div className="flex items-start gap-3 pt-4 border-t border-gray-50">
-              <Package size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+              <Package size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-black">Standard Delivery</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Standard Delivery</p>
               </div>
             </div>
           </div>
 
           {/* Payment Info */}
-          <div className="bg-white border border-gray-200 p-6 space-y-5">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 border-b border-gray-100 pb-4">Payment</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">Payment</h2>
             <div className="flex items-start gap-3 text-sm">
-              <CreditCard size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+              <CreditCard size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-medium text-black capitalize">
+                <p className="font-medium text-[var(--text-primary)] capitalize">
                   {order.paymentMethod === 'razorpay' ? 'Online (Razorpay)' : order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod}
                 </p>
                 <span className={cn('inline-block mt-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest', paymentBadgeClass(order.paymentStatus))}>
                   {order.paymentStatus}
                 </span>
                 {order.razorpayPaymentId && (
-                  <p className="text-xs text-gray-400 font-mono mt-1">ID: {order.razorpayPaymentId}</p>
+                  <p className="text-xs text-[var(--text-muted)] font-mono mt-1">ID: {order.razorpayPaymentId}</p>
                 )}
               </div>
             </div>

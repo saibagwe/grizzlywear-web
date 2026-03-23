@@ -54,8 +54,8 @@ export default function AdminDashboardPage() {
     <div>
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Dashboard Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)] tracking-tight">Dashboard Overview</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             {loading ? 'Loading live data...' : 'Live data from Firestore.'}
           </p>
         </div>
@@ -70,14 +70,14 @@ export default function AdminDashboardPage() {
           const Icon = stat.icon;
           return (
             <div key={stat.label} className={cn(
-              'bg-white border p-6 flex flex-col justify-between h-32 hover:border-black transition-colors',
-              stat.highlight ? 'border-orange-200 bg-orange-50/30' : 'border-gray-200'
+              'bg-[var(--bg-card)] border p-6 flex flex-col justify-between h-32 hover:border-black transition-colors',
+              stat.highlight ? 'border-orange-200 bg-orange-50/30' : 'border-[var(--border)]'
             )}>
               <div className="flex justify-between items-start">
-                <p className={cn('text-[10px] font-bold uppercase tracking-widest',  stat.highlight ? 'text-orange-500' : 'text-gray-400')}>{stat.label}</p>
-                <Icon size={16} className={stat.highlight ? 'text-orange-400' : 'text-gray-400'} />
+                <p className={cn('text-[10px] font-bold uppercase tracking-widest',  stat.highlight ? 'text-orange-500' : 'text-[var(--text-muted)]')}>{stat.label}</p>
+                <Icon size={16} className={stat.highlight ? 'text-orange-400' : 'text-[var(--text-muted)]'} />
               </div>
-              <p className={cn('text-2xl font-normal tracking-tight', stat.highlight ? 'text-orange-700' : 'text-gray-900')}>{stat.value}</p>
+              <p className={cn('text-2xl font-normal tracking-tight', stat.highlight ? 'text-orange-700' : 'text-[var(--text-primary)]')}>{stat.value}</p>
             </div>
           );
         })}
@@ -85,42 +85,42 @@ export default function AdminDashboardPage() {
 
       {/* Charts placeholder */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white border border-gray-200 p-6 h-[400px] flex flex-col">
+        <div className="lg:col-span-2 bg-[var(--bg-card)] border border-[var(--border)] p-6 h-[400px] flex flex-col">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900">Revenue Overview</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">Revenue Overview</h2>
           </div>
-          <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-100 bg-gray-50/50">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Analytics Chart (coming soon)</p>
+          <div className="flex-1 flex items-center justify-center border-2 border-dashed border-[var(--border)] bg-[var(--bg)]/50">
+            <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-widest">Analytics Chart (coming soon)</p>
           </div>
         </div>
-        <div className="lg:col-span-1 bg-white border border-gray-200 p-6 h-[400px] flex flex-col items-center justify-center relative">
-          <h2 className="absolute top-6 left-6 text-sm font-bold uppercase tracking-widest text-gray-900">Sales by Category</h2>
-          <div className="flex-1 w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-100 bg-gray-50/50 mt-12">
+        <div className="lg:col-span-1 bg-[var(--bg-card)] border border-[var(--border)] p-6 h-[400px] flex flex-col items-center justify-center relative">
+          <h2 className="absolute top-6 left-6 text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">Sales by Category</h2>
+          <div className="flex-1 w-full flex flex-col items-center justify-center border-2 border-dashed border-[var(--border)] bg-[var(--bg)]/50 mt-12">
             <div className="w-32 h-32 rounded-full border-[16px] border-t-black border-r-gray-300 border-b-gray-200 border-l-gray-100 mb-6" />
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Coming Soon</p>
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Coming Soon</p>
           </div>
         </div>
       </div>
 
       {/* Recent orders */}
-      <div className="bg-white border border-gray-200">
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900">Recent Orders</h2>
-          <Link href="/admin/orders" className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4 flex items-center gap-1">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)]">
+        <div className="flex justify-between items-center p-6 border-b border-[var(--border)]">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">Recent Orders</h2>
+          <Link href="/admin/orders" className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline underline-offset-4 flex items-center gap-1">
             View All <ArrowRight size={12} />
           </Link>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 size={24} className="animate-spin text-gray-400" />
+            <Loader2 size={24} className="animate-spin text-[var(--text-muted)]" />
           </div>
         ) : recentOrders.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No orders yet. Orders will appear here as customers check out.</div>
+          <div className="text-center py-12 text-[var(--text-muted)] text-sm">No orders yet. Orders will appear here as customers check out.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-[#F9F9F9] text-[10px] uppercase font-bold tracking-widest text-gray-500 border-b border-gray-200">
+              <thead className="bg-[#F9F9F9] text-[10px] uppercase font-bold tracking-widest text-[var(--text-secondary)] border-b border-[var(--border)]">
                 <tr>
                   <th className="px-6 py-4">Order ID</th>
                   <th className="px-6 py-4">Date</th>
@@ -131,20 +131,20 @@ export default function AdminDashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {recentOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-black">
+                  <tr key={order.id} className="hover:bg-[var(--bg)] transition-colors">
+                    <td className="px-6 py-4 font-medium text-[var(--text-primary)]">
                       <Link href={`/admin/orders/${order.id}`} className="hover:underline underline-offset-4 font-mono text-xs">
                         {order.orderId}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">{formatDate(order.createdAt)}</td>
-                    <td className="px-6 py-4 text-gray-900">{order.customerName || '—'}</td>
+                    <td className="px-6 py-4 text-[var(--text-secondary)] text-xs">{formatDate(order.createdAt)}</td>
+                    <td className="px-6 py-4 text-[var(--text-primary)]">{order.customerName || '—'}</td>
                     <td className="px-6 py-4">
                       <span className={cn('inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase tracking-widest', statusBadge(order.status))}>
                         {order.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium text-gray-900">
+                    <td className="px-6 py-4 text-right font-medium text-[var(--text-primary)]">
                       ₹{order.total.toLocaleString('en-IN')}
                     </td>
                   </tr>

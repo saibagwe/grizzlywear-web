@@ -150,3 +150,27 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+[data-theme="light"] {
+  --bg: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --bg-hover: #F0F0F0;
+  --border: #E5E5E5;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-muted: #888888;
+}
+
+[data-theme="dark"] {
+  --bg: #0A0A0A;
+  --bg-card: #111111;
+  --bg-hover: #1A1A1A;
+  --border: #222222;
+  --text-primary: #EDEDED;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+}
+
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}

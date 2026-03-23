@@ -55,18 +55,18 @@ function StockEditModal({ item, onClose }: { item: InventoryItem; onClose: () =>
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in" onClick={onClose} />
-      <div className="bg-white rounded-2xl w-full max-w-lg relative z-10 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-        <div className="bg-[#F8F9FA] p-8 pb-4 flex items-center justify-between">
+      <div className="bg-[var(--bg-card)] rounded-2xl w-full max-w-lg relative z-10 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="bg-[var(--bg)] p-8 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-20 relative bg-white rounded border border-gray-100 overflow-hidden shadow-sm flex-shrink-0">
+            <div className="w-16 h-20 relative bg-[var(--bg-card)] rounded border border-[var(--border)] overflow-hidden shadow-sm flex-shrink-0">
                {item.imageUrl ? <Image src={item.imageUrl} alt={item.productName} fill className="object-cover" /> : <div className="p-2 text-[8px] text-gray-300">NO IMG</div>}
             </div>
             <div>
-              <h3 className="text-xl font-bold text-[#1A1A2E]">{item.productName}</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Product Inventory Management</p>
+              <h3 className="text-xl font-bold text-[var(--text-primary)]">{item.productName}</h3>
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mt-1">Product Inventory Management</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all text-gray-400 hover:text-black">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--bg-card)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)]">
             <X size={20} />
           </button>
         </div>
@@ -74,10 +74,10 @@ function StockEditModal({ item, onClose }: { item: InventoryItem; onClose: () =>
         <div className="p-8 space-y-4">
           <div className="grid grid-cols-1 gap-4">
             {Object.entries(localStock).map(([size, count]) => (
-              <div key={size} className="flex items-center justify-between bg-[#F8F9FA] p-4 rounded-xl border border-gray-50/50">
+              <div key={size} className="flex items-center justify-between bg-[var(--bg)] p-4 rounded-xl border border-gray-50/50">
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-[#1A1A2E]">{size} Unit</span>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Current Stock: {item.stock[size] || 0}</span>
+                  <span className="text-sm font-bold text-[var(--text-primary)]">{size} Unit</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider">Current Stock: {item.stock[size] || 0}</span>
                 </div>
                 <div className="flex items-center gap-4">
                    <div className="relative">
@@ -87,7 +87,7 @@ function StockEditModal({ item, onClose }: { item: InventoryItem; onClose: () =>
                        min="0"
                        value={count}
                        onChange={(e) => setLocalStock({ ...localStock, [size]: Math.max(0, parseInt(e.target.value) || 0) })}
-                       className="w-32 bg-white border border-gray-100 rounded-lg pl-9 pr-4 py-2.5 text-sm font-bold text-[#1A1A2E] focus:outline-none focus:ring-2 focus:ring-black transition-all"
+                       className="w-32 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2.5 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-black transition-all"
                      />
                    </div>
                 </div>
@@ -96,8 +96,8 @@ function StockEditModal({ item, onClose }: { item: InventoryItem; onClose: () =>
           </div>
         </div>
 
-        <div className="p-8 bg-gray-50 border-t border-gray-100 flex gap-4">
-          <button onClick={onClose} className="flex-1 py-4 text-[10px] font-bold uppercase tracking-widest border border-gray-200 bg-white rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
+        <div className="p-8 bg-[var(--bg)] border-t border-[var(--border)] flex gap-4">
+          <button onClick={onClose} className="flex-1 py-4 text-[10px] font-bold uppercase tracking-widest border border-[var(--border)] bg-[var(--bg-card)] rounded-xl hover:bg-[var(--bg)] transition-all">Cancel</button>
           <button 
             onClick={handleSave} 
             disabled={isSaving}
@@ -189,49 +189,49 @@ function AddProductModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in" onClick={onClose} />
-      <div className="bg-white rounded-2xl w-full max-w-lg relative z-10 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-2xl w-full max-w-lg relative z-10 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         <div className="p-8 pb-4 border-b border-gray-50 flex items-center justify-between">
-           <h3 className="text-xl font-bold text-[#1A1A2E]">Quick Add Product</h3>
-           <button onClick={onClose} className="p-2 hover:bg-[#F8F9FA] rounded-full transition-all text-gray-400 hover:text-black">
+           <h3 className="text-xl font-bold text-[var(--text-primary)]">Quick Add Product</h3>
+           <button onClick={onClose} className="p-2 hover:bg-[var(--bg)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)]">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
            <div className="grid grid-cols-2 gap-4">
              <div className="col-span-2">
-               <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Product Name</label>
-               <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#F8F9FA] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all" />
+               <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-2">Product Name</label>
+               <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[var(--bg)] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all" />
              </div>
              <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Category</label>
-               <select required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-[#F8F9FA] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all appearance-none cursor-pointer">
+               <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-2">Category</label>
+               <select required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-[var(--bg)] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all appearance-none cursor-pointer">
                   <option value="men">Men</option>
                   <option value="women">Women</option>
                   <option value="accessories">Accessories</option>
                </select>
              </div>
              <div>
-               <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Price (₹)</label>
-               <input required type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-[#F8F9FA] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all" />
+               <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-2">Price (₹)</label>
+               <input required type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-[var(--bg)] border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all" />
              </div>
            </div>
            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4">Select Available Sizes</label>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-4">Select Available Sizes</label>
               <div className="flex flex-wrap gap-2">
                 {AVAILABLE_SIZES.map(size => (
                   <label key={size} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={selectedSizes.includes(size)} onChange={() => toggleSize(size)} className="sr-only" />
-                    <div className={cn("w-14 h-12 border flex items-center justify-center text-[11px] font-bold tracking-widest uppercase transition-all rounded-lg", selectedSizes.includes(size) ? "bg-black text-white border-black shadow-md" : "bg-white border-gray-100 text-gray-400 hover:border-black hover:text-black")}>{size}</div>
+                    <div className={cn("w-14 h-12 border flex items-center justify-center text-[11px] font-bold tracking-widest uppercase transition-all rounded-lg", selectedSizes.includes(size) ? "bg-black text-white border-black shadow-md" : "bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-black hover:text-[var(--text-primary)]")}>{size}</div>
                   </label>
                 ))}
               </div>
            </div>
            <div>
-             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Short Description</label>
-             <textarea required rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full bg-[#F8F9FA] border-none rounded-lg px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-black transition-all" />
+             <label className="block text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-2">Short Description</label>
+             <textarea required rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full bg-[var(--bg)] border-none rounded-lg px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-black transition-all" />
            </div>
            <div className="flex gap-4 pt-4">
-             <button type="button" onClick={onClose} className="flex-1 py-4 text-[10px] font-bold uppercase tracking-widest border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancel</button>
+             <button type="button" onClick={onClose} className="flex-1 py-4 text-[10px] font-bold uppercase tracking-widest border border-[var(--border)] rounded-xl hover:bg-[var(--bg)] transition-all">Cancel</button>
              <button type="submit" disabled={isSubmitting} className="flex-1 bg-black text-white py-4 text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-gray-800 transition-all shadow-lg flex items-center justify-center gap-2">
                {isSubmitting ? <Loader2 size={12} className="animate-spin" /> : <Plus size={16} />}
                Create Product Entry
@@ -289,12 +289,12 @@ export default function InventoryPage() {
   const lowStockItems = useMemo(() => inventory.filter(i => i.totalStock > 0 && i.totalStock <= i.lowStockThreshold).slice(0, 5), [inventory]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-[#1A1A2E] tracking-tight">Stock Inventory</h1>
-          <span className="bg-white border border-gray-100 px-3 py-1 rounded-full text-[10px] font-bold text-gray-400 shadow-sm">{inventory.length} SKUs</span>
+          <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Stock Inventory</h1>
+          <span className="bg-[var(--bg-card)] border border-[var(--border)] px-3 py-1 rounded-full text-[10px] font-bold text-[var(--text-muted)] shadow-sm">{inventory.length} SKUs</span>
         </div>
         <button onClick={() => setIsAdding(true)} className="bg-black text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-all shadow-lg flex items-center gap-2">
           <Plus size={16} /> Quick Add SKU
@@ -303,32 +303,32 @@ export default function InventoryPage() {
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-black group">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-black group">
            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400">
+              <div className="w-10 h-10 rounded-full bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)]">
                 <Package size={20} />
               </div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Inventory Items</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Inventory Items</span>
            </div>
-           <p className="text-3xl font-bold text-[#1A1A2E]">{stats.total}</p>
+           <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.total}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-yellow-500 group">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-yellow-500 group">
            <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-500">
                 <PackageMinus size={20} />
               </div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Low Stock SKUs</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Low Stock SKUs</span>
            </div>
-           <p className="text-3xl font-bold text-[#1A1A2E]">{stats.low}</p>
+           <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.low}</p>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-red-500 group">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-red-500 group">
            <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
                 <PackageX size={20} />
               </div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Out of Stock</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Out of Stock</span>
            </div>
-           <p className="text-3xl font-bold text-[#1A1A2E]">{stats.out}</p>
+           <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.out}</p>
         </div>
       </div>
 
@@ -351,7 +351,7 @@ export default function InventoryPage() {
                <button 
                  key={item.productId} 
                  onClick={() => setEditingItem(item)}
-                 className="px-6 py-2 bg-white text-yellow-700 border border-yellow-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-yellow-100 transition-all flex items-center gap-2 shadow-sm"
+                 className="px-6 py-2 bg-[var(--bg-card)] text-yellow-700 border border-yellow-200 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-yellow-100 transition-all flex items-center gap-2 shadow-sm"
                >
                  Restock {item.productName.split(' ')[0]} <ArrowRight size={12} />
                </button>
@@ -361,26 +361,26 @@ export default function InventoryPage() {
       )}
 
       {/* ── Filter Bar ── */}
-      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 p-4 mb-8">
+      <div className="bg-[var(--bg-card)] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[var(--border)] p-4 mb-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="relative w-full sm:max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
             <input 
               type="text" 
               placeholder="Search products in inventory..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-[#F8F9FA] border-none rounded-lg pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all"
+              className="w-full bg-[var(--bg)] border-none rounded-lg pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all"
             />
           </div>
-          <div className="flex items-center gap-2 bg-[#F8F9FA] p-1.5 rounded-xl border border-gray-50">
+          <div className="flex items-center gap-2 bg-[var(--bg)] p-1.5 rounded-xl border border-gray-50">
             {(['all', 'in', 'low', 'out'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
                   'px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all',
-                  filter === f ? 'bg-white text-black shadow-lg shadow-black/5' : 'text-gray-400 hover:text-black'
+                  filter === f ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-lg shadow-black/5' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 )}
               >
                 {f}
@@ -391,11 +391,11 @@ export default function InventoryPage() {
       </div>
 
       {/* ── Table Container ── */}
-      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
             <thead>
-              <tr className="bg-[#F8F9FA] border-b border-gray-100 text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                 <th className="px-6 py-5">Product SKU</th>
                 <th className="px-6 py-5">Category</th>
                 <th className="px-6 py-5">Breakdown (Size)</th>
@@ -404,43 +404,43 @@ export default function InventoryPage() {
                 <th className="px-6 py-5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="animate-pulse border-b border-gray-50">
-                    <td className="px-6 py-6"><div className="w-48 h-10 bg-gray-50 rounded" /></td>
-                    <td className="px-6 py-6"><div className="w-20 h-5 bg-gray-50 rounded-full" /></td>
-                    <td className="px-6 py-6"><div className="w-40 h-8 bg-gray-50 rounded-lg" /></td>
-                    <td className="px-6 py-6"><div className="w-10 h-5 bg-gray-50 rounded mx-auto" /></td>
-                    <td className="px-6 py-6"><div className="w-24 h-6 bg-gray-50 rounded-full" /></td>
-                    <td className="px-6 py-6 text-right"><div className="w-16 h-4 bg-gray-50 rounded ml-auto" /></td>
+                    <td className="px-6 py-6"><div className="w-48 h-10 bg-[var(--bg)] rounded" /></td>
+                    <td className="px-6 py-6"><div className="w-20 h-5 bg-[var(--bg)] rounded-full" /></td>
+                    <td className="px-6 py-6"><div className="w-40 h-8 bg-[var(--bg)] rounded-lg" /></td>
+                    <td className="px-6 py-6"><div className="w-10 h-5 bg-[var(--bg)] rounded mx-auto" /></td>
+                    <td className="px-6 py-6"><div className="w-24 h-6 bg-[var(--bg)] rounded-full" /></td>
+                    <td className="px-6 py-6 text-right"><div className="w-16 h-4 bg-[var(--bg)] rounded ml-auto" /></td>
                   </tr>
                 ))
               ) : filteredInventory.length === 0 ? (
                 <tr>
                    <td colSpan={6} className="py-24 text-center">
                       <div className="flex flex-col items-center justify-center opacity-30">
-                        <Package size={48} className="text-gray-400 mb-4" />
+                        <Package size={48} className="text-[var(--text-muted)] mb-4" />
                         <h3 className="text-sm font-bold uppercase tracking-widest">Empty Inventory</h3>
                       </div>
                    </td>
                 </tr>
               ) : (
                 filteredInventory.map((item) => (
-                  <tr key={item.productId} className="hover:bg-[#F8F9FA]/60 transition-colors group">
+                  <tr key={item.productId} className="hover:bg-[var(--bg)]/60 transition-colors group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-14 relative bg-white border border-gray-100 rounded-sm overflow-hidden flex-shrink-0">
+                        <div className="w-10 h-14 relative bg-[var(--bg-card)] border border-[var(--border)] rounded-sm overflow-hidden flex-shrink-0">
                           {item.imageUrl ? <Image src={item.imageUrl} alt={item.productName} fill className="object-cover" /> : <div className="p-2 text-[8px] text-gray-300">SKU</div>}
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-[#1A1A2E]">{item.productName}</span>
-                          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{item.productId.slice(-8)}</span>
+                          <span className="text-sm font-bold text-[var(--text-primary)]">{item.productName}</span>
+                          <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest">{item.productId.slice(-8)}</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 border border-gray-100 px-3 py-1 rounded-full">{item.category}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] border border-[var(--border)] px-3 py-1 rounded-full">{item.category}</span>
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex gap-2">
@@ -458,7 +458,7 @@ export default function InventoryPage() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="text-sm font-bold text-[#1A1A2E]">{item.totalStock}</span>
+                      <span className="text-sm font-bold text-[var(--text-primary)]">{item.totalStock}</span>
                     </td>
                     <td className="px-6 py-5">
                       {item.totalStock === 0 ? (
@@ -476,7 +476,7 @@ export default function InventoryPage() {
                       )}
                     </td>
                     <td className="px-6 py-5 text-right">
-                       <button onClick={() => setEditingItem(item)} className="p-3 bg-white border border-gray-100 text-black rounded-xl hover:bg-black hover:text-white hover:shadow-lg transition-all opacity-0 group-hover:opacity-100">
+                       <button onClick={() => setEditingItem(item)} className="p-3 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] rounded-xl hover:bg-black hover:text-white hover:shadow-lg transition-all opacity-0 group-hover:opacity-100">
                           <Edit2 size={16} />
                        </button>
                     </td>

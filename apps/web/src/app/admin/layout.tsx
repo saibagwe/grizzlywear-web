@@ -16,6 +16,8 @@ import {
   MessageSquare,
   Settings,
   LogOut,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
@@ -44,6 +46,24 @@ export default function AdminLayout({
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketCount, setOpenTicketCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [themeLoaded, setThemeLoaded] = useState(false);
+
+  // Theme Persistence
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('adminTheme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+    setThemeLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (themeLoaded) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('adminTheme', theme);
+    }
+  }, [theme, themeLoaded]);
 
   // Protect Admin Routes (Client-side)
   useEffect(() => {
@@ -85,10 +105,10 @@ export default function AdminLayout({
 
   if (!initialized || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Verifying Admin Access...</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Verifying Admin Access...</p>
         </div>
       </div>
     );
@@ -97,9 +117,9 @@ export default function AdminLayout({
   if (!isAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-0">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)] pt-0 transition-colors">
       {/* Admin top bar */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 h-14">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-card)] border-b border-[var(--border)] h-14 transition-colors">
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <Link
@@ -122,9 +142,16 @@ export default function AdminLayout({
                 {pendingCount} pending
               </Link>
             )}
+            <button
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              aria-label="Toggle Theme"
+            >
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
             <Link
               href="/"
-              className="text-xs text-gray-500 hover:text-black transition-colors"
+              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               View Store →
             </Link>
@@ -132,7 +159,7 @@ export default function AdminLayout({
               onClick={() => {
                 import('@/store/authStore').then((m) => m.useAuthStore.getState().logout());
               }}
-              className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+              className="p-2 text-[var(--text-secondary)] hover:text-red-600 transition-colors"
               aria-label="Logout"
             >
               <LogOut className="w-4 h-4" />
@@ -143,7 +170,7 @@ export default function AdminLayout({
 
       <div className="flex pt-14">
         {/* Sidebar */}
-        <aside className="fixed left-0 top-14 bottom-0 w-56 bg-white border-r border-gray-200 overflow-y-auto hidden lg:block">
+        <aside className="fixed left-0 top-14 bottom-0 w-56 bg-[var(--bg-card)] border-r border-[var(--border)] overflow-y-auto hidden lg:block transition-colors">
           <nav className="py-4 px-3">
             <ul className="space-y-0.5">
               {adminNavItems.map((item) => {
@@ -155,8 +182,8 @@ export default function AdminLayout({
                       className={cn(
                         'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors',
                         isActive
-                          ? 'bg-black text-white'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-black'
+                          ? 'bg-[var(--text-primary)] text-[var(--bg-card)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -166,7 +193,7 @@ export default function AdminLayout({
                       {item.showBadge && pendingCount > 0 && (
                         <span className={cn(
                           'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-white text-black' : 'bg-orange-500 text-white'
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-orange-500 text-white'
                         )}>
                           {pendingCount}
                         </span>
@@ -174,7 +201,7 @@ export default function AdminLayout({
                       {(item as any).showTicketBadge && openTicketCount > 0 && (
                         <span className={cn(
                           'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-white text-black' : 'bg-green-500 text-white'
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-green-500 text-white'
                         )}>
                           {openTicketCount}
                         </span>
@@ -182,7 +209,7 @@ export default function AdminLayout({
                       {(item as any).showLowStockBadge && lowStockCount > 0 && (
                         <span className={cn(
                           'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-white text-black' : 'bg-red-500 text-white'
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-red-500 text-white'
                         )}>
                           {lowStockCount}
                         </span>

@@ -61,9 +61,9 @@ function formatCurrency(amount: number): string {
 
 function StatCard({ label, value, icon: Icon, colorClass, trend }: any) {
   return (
-    <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm space-y-3">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 rounded-xl shadow-sm space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{label}</span>
         <div className={cn('p-2.5 rounded-lg border', colorClass)}>
           <Icon size={18} />
         </div>
@@ -83,12 +83,12 @@ function StatCard({ label, value, icon: Icon, colorClass, trend }: any) {
 function DetailRow({ label, value, icon: Icon }: any) {
   return (
     <div className="flex items-center gap-4 py-4 first:pt-0 last:pb-0 border-b last:border-0 border-gray-50">
-      <div className="w-10 h-10 bg-gray-50 flex items-center justify-center rounded-lg text-gray-400 shrink-0">
+      <div className="w-10 h-10 bg-[var(--bg)] flex items-center justify-center rounded-lg text-[var(--text-muted)] shrink-0">
         <Icon size={18} />
       </div>
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">{label}</p>
-        <p className="text-sm font-medium text-gray-900">{value || 'Not provided'}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-0.5">{label}</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">{value || 'Not provided'}</p>
       </div>
     </div>
   );
@@ -158,12 +158,12 @@ export default function AdminCustomerDetailPage() {
           <ShieldX size={48} className="text-red-300" />
         </div>
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900">Customer not found</h2>
-          <p className="text-gray-500 mt-2">The requested customer document does not exist in Firestore.</p>
+          <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Customer not found</h2>
+          <p className="text-[var(--text-secondary)] mt-2">The requested customer document does not exist in Firestore.</p>
         </div>
         <Link 
           href="/admin/customers" 
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-black transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           <ArrowLeft size={16} /> Back to customers
         </Link>
@@ -178,7 +178,7 @@ export default function AdminCustomerDetailPage() {
         <div className="space-y-4">
           <Link
             href="/admin/customers"
-            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             <ArrowLeft size={14} /> Back to Customer List
           </Link>
@@ -187,9 +187,9 @@ export default function AdminCustomerDetailPage() {
               {customer.fullName.charAt(0) || <User size={24} />}
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">{customer.fullName || 'Anonymous'}</h1>
+              <h1 className="text-3xl font-semibold text-[var(--text-primary)] tracking-tight">{customer.fullName || 'Anonymous'}</h1>
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs font-mono text-gray-400 uppercase tracking-widest">ID: {customer.uid}</p>
+                <p className="text-xs font-mono text-[var(--text-muted)] uppercase tracking-widest">ID: {customer.uid}</p>
                 <div className="h-1 w-1 bg-gray-200 rounded-full" />
                 <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-[0.1em] border border-green-100 rounded-full">
                   <ShieldCheck size={10} /> Active Member
@@ -234,9 +234,9 @@ export default function AdminCustomerDetailPage() {
         {/* Left Column: Details */}
         <div className="lg:col-span-1 space-y-8">
           {/* Account Details */}
-          <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">Account Information</h3>
+          <section className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg)]/30">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Account Information</h3>
             </div>
             <div className="p-6">
               <DetailRow label="Full Name" value={customer.fullName} icon={User} />
@@ -251,7 +251,7 @@ export default function AdminCustomerDetailPage() {
           {/* Activity Placeholder / Note */}
           <div className="p-6 bg-gray-900 rounded-2xl text-white shadow-xl shadow-gray-200 relative overflow-hidden group">
             <div className="relative z-10">
-              <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Internal Note</h4>
+              <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2">Internal Note</h4>
               <p className="text-sm font-light text-gray-200 leading-relaxed italic">
                 &quot;High value customer frequently ordering during seasonal sales. Prefers express delivery.&quot;
               </p>
@@ -265,33 +265,33 @@ export default function AdminCustomerDetailPage() {
         {/* Right Column: Addresses & Recent Activity */}
         <div className="lg:col-span-2 space-y-8">
           {/* Saved Addresses */}
-          <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">Saved Delivery Addresses ({addresses.length})</h3>
+          <section className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg)]/30">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Saved Delivery Addresses ({addresses.length})</h3>
             </div>
             <div className="p-6">
               {addresses.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">
+                <div className="text-center py-10 text-[var(--text-muted)]">
                   <MapPin size={32} className="mx-auto mb-3 opacity-20" />
                   <p className="text-xs font-bold uppercase tracking-[0.2em]">No addresses saved</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {addresses.map((addr) => (
-                    <div key={addr.id} className="relative group p-4 bg-white border border-gray-100 rounded-xl hover:border-black transition-all hover:shadow-md">
+                    <div key={addr.id} className="relative group p-4 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl hover:border-black transition-all hover:shadow-md">
                       {addr.isDefault && (
                         <span className="absolute top-3 right-3 px-2 py-0.5 bg-black text-white text-[8px] font-bold uppercase tracking-widest rounded">DEFAULT</span>
                       )}
-                      <div className="mb-3 p-2 bg-gray-50 inline-block rounded-lg group-hover:bg-black group-hover:text-white transition-colors">
+                      <div className="mb-3 p-2 bg-[var(--bg)] inline-block rounded-lg group-hover:bg-black group-hover:text-white transition-colors">
                         <MapPin size={16} />
                       </div>
                       <h4 className="text-xs font-bold uppercase tracking-widest mb-2">{addr.label || 'Home'}</h4>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <p className="font-medium text-gray-900">{addr.name}</p>
+                      <div className="text-sm text-[var(--text-secondary)] space-y-1">
+                        <p className="font-medium text-[var(--text-primary)]">{addr.name}</p>
                         <p>{addr.line1}</p>
                         {addr.line2 && <p>{addr.line2}</p>}
                         <p>{addr.city}, {addr.state} - {addr.pincode}</p>
-                        <p className="text-xs text-gray-400 pt-1 flex items-center gap-1.5 pt-2">
+                        <p className="text-xs text-[var(--text-muted)] pt-1 flex items-center gap-1.5 pt-2">
                           <Phone size={10} /> {addr.phone}
                         </p>
                       </div>
@@ -303,14 +303,14 @@ export default function AdminCustomerDetailPage() {
           </section>
 
           {/* Recent Orders Overview */}
-          <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Transactions</h3>
+          <section className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg)]/30 flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Recent Transactions</h3>
               <Link href="/admin/orders" className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:underline">View All Orders</Link>
             </div>
             <div className="p-0">
               {orders.length === 0 ? (
-                <div className="px-6 py-12 text-center text-gray-400">
+                <div className="px-6 py-12 text-center text-[var(--text-muted)]">
                   <ShoppingBag size={32} className="mx-auto mb-3 opacity-20" />
                   <p className="text-xs font-bold uppercase tracking-[0.2em]">No orders placed yet</p>
                 </div>
@@ -318,21 +318,21 @@ export default function AdminCustomerDetailPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-gray-50/50">
-                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-gray-400">Order ID</th>
-                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-gray-400">Date</th>
-                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-gray-400">Amount</th>
-                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-gray-400 text-right">Status</th>
+                      <tr className="bg-[var(--bg)]/50">
+                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Order ID</th>
+                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Date</th>
+                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Amount</th>
+                        <th className="px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)] text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {orders.slice(0, 5).map((order) => (
-                        <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                        <tr key={order.id} className="border-b border-gray-50 hover:bg-[var(--bg)]/50 transition-colors">
                           <td className="px-6 py-4">
                             <Link href={`/admin/orders/${order.id}`} className="text-xs font-mono font-bold text-gray-800 hover:underline">{order.orderId}</Link>
                           </td>
-                          <td className="px-6 py-4 text-xs text-gray-500">{formatDate(order.createdAt)}</td>
-                          <td className="px-6 py-4 text-xs font-semibold tabular-nums text-gray-900">{formatCurrency(order.total)}</td>
+                          <td className="px-6 py-4 text-xs text-[var(--text-secondary)]">{formatDate(order.createdAt)}</td>
+                          <td className="px-6 py-4 text-xs font-semibold tabular-nums text-[var(--text-primary)]">{formatCurrency(order.total)}</td>
                           <td className="px-6 py-4 text-right">
                             <span className={cn(
                               'inline-flex px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-full border',

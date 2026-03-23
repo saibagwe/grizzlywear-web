@@ -11,6 +11,9 @@
     "build": "pnpm --parallel -r run build",
     "build:web": "pnpm --filter @grizzlywear/web build",
     "build:backend": "pnpm --filter @grizzlywear/backend build",
+    "start": "pnpm --parallel -r run start",
+    "start:web": "pnpm --filter @grizzlywear/web start",
+    "start:backend": "pnpm --filter @grizzlywear/backend start",
     "lint": "pnpm --parallel -r run lint",
     "typecheck": "pnpm --parallel -r run typecheck",
     "clean": "pnpm --parallel -r run clean"

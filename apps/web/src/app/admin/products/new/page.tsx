@@ -189,33 +189,33 @@ export default function AddEditProductPage() {
   return (
     <div className="max-w-5xl mx-auto pb-20">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/admin/products" className="w-10 h-10 border flex items-center justify-center hover:bg-gray-50"><ArrowLeft size={16} /></Link>
+        <Link href="/admin/products" className="w-10 h-10 border flex items-center justify-center hover:bg-[var(--bg)]"><ArrowLeft size={16} /></Link>
         <div>
           <h1 className="text-2xl font-semibold">{isEditing ? 'Edit Product' : 'New Product'}</h1>
-          <p className="text-sm text-gray-500">Stock is managed only through the Inventory page.</p>
+          <p className="text-sm text-[var(--text-secondary)]">Stock is managed only through the Inventory page.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="lg:grid lg:grid-cols-3 lg:gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Basic Info */}
-          <div className="bg-white border border-gray-200 p-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Basic Information</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Basic Information</h2>
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Name *</label>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase">Name *</label>
                 <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full border px-4 py-3 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Description *</label>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-widest">Description *</label>
                 <textarea required rows={5} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full border px-4 py-3 text-sm resize-none" />
               </div>
             </div>
           </div>
 
           {/* Media */}
-          <div className="bg-white border border-gray-200 p-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Media</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Media</h2>
             {images.length > 0 && (
               <div className="flex flex-wrap gap-3 mb-5">
                 {images.map((url, i) => (
@@ -228,8 +228,8 @@ export default function AddEditProductPage() {
             )}
             <CldUploadWidget uploadPreset="grizzlywear_products" onSuccess={(res: any) => res.info?.secure_url && setImages(prev => [...prev, res.info.secure_url])}>
               {({ open }) => (
-                <button type="button" onClick={() => open()} className="w-full border-2 border-dashed p-10 text-center hover:bg-gray-50 flex flex-col items-center gap-3">
-                  <ImagePlus size={22} className="text-gray-400" />
+                <button type="button" onClick={() => open()} className="w-full border-2 border-dashed p-10 text-center hover:bg-[var(--bg)] flex flex-col items-center gap-3">
+                  <ImagePlus size={22} className="text-[var(--text-muted)]" />
                   <span className="text-sm font-medium">Upload Images</span>
                 </button>
               )}
@@ -237,8 +237,8 @@ export default function AddEditProductPage() {
           </div>
 
           {/* Sizes */}
-          <div className="bg-white border border-gray-200 p-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Available Sizes</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Available Sizes</h2>
             <div className="flex flex-wrap gap-4">
               {AVAILABLE_SIZES.map(size => {
                 const isSelected = selectedSizes.includes(size);
@@ -251,9 +251,9 @@ export default function AddEditProductPage() {
                         if (e.target.checked) setSelectedSizes([...selectedSizes, size]);
                         else setSelectedSizes(selectedSizes.filter(s => s !== size));
                       }}
-                      className="w-4 h-4 border-gray-300 rounded text-black focus:ring-black"
+                      className="w-4 h-4 border-gray-300 rounded text-[var(--text-primary)] focus:ring-black"
                     />
-                    <span className={cn("text-sm font-bold", isSelected ? "text-black" : "text-gray-400")}>{size}</span>
+                    <span className={cn("text-sm font-bold", isSelected ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]")}>{size}</span>
                   </label>
                 );
               })}
@@ -262,8 +262,8 @@ export default function AddEditProductPage() {
           </div>
 
           {/* Product Details */}
-          <div className="bg-white border border-gray-200 p-8 space-y-6">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Product Details</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-8 space-y-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Product Details</h2>
             <TagInput label="Features" values={features} onRemove={(v: string) => setFeatures(features.filter(f => f !== v))} onKeyDown={(e: any) => handleTagKeyDown(e, setFeatures)} />
             <TagInput label="Care Instructions" values={careInstructions} onRemove={(v: string) => setCareInstructions(careInstructions.filter(c => c !== v))} onKeyDown={(e: any) => handleTagKeyDown(e, setCareInstructions)} />
             <TagInput label="Tags" values={tags} onRemove={(v: string) => setTags(tags.filter(t => t !== v))} onKeyDown={(e: any) => handleTagKeyDown(e, setTags)} />
@@ -272,21 +272,21 @@ export default function AddEditProductPage() {
 
         {/* Sidebar */}
         <div className="space-y-8">
-          <div className="bg-white border border-gray-200 p-6">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Pricing</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Pricing</h2>
             <div className="space-y-4 text-sm">
-              <label className="block font-bold text-gray-500 uppercase text-[10px]">Price (₹) *</label>
+              <label className="block font-bold text-[var(--text-secondary)] uppercase text-[10px]">Price (₹) *</label>
               <input required type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full border px-4 py-3" />
-              <label className="block font-bold text-gray-500 uppercase text-[10px]">Compare Price (₹)</label>
+              <label className="block font-bold text-[var(--text-secondary)] uppercase text-[10px]">Compare Price (₹)</label>
               <input type="number" value={formData.comparePrice} onChange={e => setFormData({ ...formData, comparePrice: e.target.value })} className="w-full border px-4 py-3" />
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 p-6">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-6">Organization</h2>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] mb-6">Organization</h2>
             <div className="space-y-4">
-              <label className="block font-bold text-gray-500 uppercase text-[10px]">Category *</label>
-              <select required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full border px-4 py-3 text-sm bg-white">
+              <label className="block font-bold text-[var(--text-secondary)] uppercase text-[10px]">Category *</label>
+              <select required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full border px-4 py-3 text-sm bg-[var(--bg-card)]">
                 <option value="men">Men</option>
                 <option value="women">Women</option>
                 <option value="accessories">Accessories</option>
@@ -295,11 +295,11 @@ export default function AddEditProductPage() {
             </div>
           </div>
 
-          <div className="bg-gray-50 border p-6 flex flex-col gap-3 sticky top-28">
+          <div className="bg-[var(--bg)] border p-6 flex flex-col gap-3 sticky top-28">
             <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white py-4 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 disabled:opacity-50">
               {isSubmitting ? <Loader2 className="animate-spin mx-auto" size={16} /> : (isEditing ? 'Save Changes' : 'Publish Product')}
             </button>
-            <Link href="/admin/products" className="w-full border py-4 text-xs font-bold uppercase text-center hover:bg-white bg-gray-50">Cancel</Link>
+            <Link href="/admin/products" className="w-full border py-4 text-xs font-bold uppercase text-center hover:bg-[var(--bg-card)] bg-[var(--bg)]">Cancel</Link>
           </div>
         </div>
       </form>
@@ -310,8 +310,8 @@ export default function AddEditProductPage() {
 function TagInput({ label, values, onRemove, onKeyDown }: any) {
   return (
     <div className="space-y-2">
-      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</label>
-      <div className="border border-gray-200 p-3 min-h-[50px] flex flex-wrap gap-2 bg-white">
+      <label className="block text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{label}</label>
+      <div className="border border-[var(--border)] p-3 min-h-[50px] flex flex-wrap gap-2 bg-[var(--bg-card)]">
         {values.map((v: string) => (
           <span key={v} className="bg-gray-100 px-3 py-1 text-[10px] font-bold flex items-center gap-2">
             {v} <button type="button" onClick={() => onRemove(v)} className="hover:text-red-500"><X size={10} /></button>

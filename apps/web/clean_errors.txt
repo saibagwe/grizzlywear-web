@@ -1,0 +1,13 @@
+﻿src/app/admin/analytics/page.tsx(599,20): error TS2552: Cannot find name 'AreaChart'. Did you mean 'BarChart'?
+src/app/admin/analytics/page.tsx(623,22): error TS2304: Cannot find name 'Area'.
+src/app/admin/analytics/page.tsx(631,21): error TS2552: Cannot find name 'AreaChart'. Did you mean 'BarChart'?
+src/app/admin/orders/page.tsx(174,40): error TS2339: Property 'toDate' does not exist on type '{}'.
+src/app/admin/orders/page.tsx(174,61): error TS2339: Property 'toDate' does not exist on type '{}'.
+src/app/admin/orders/page.tsx(174,81): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | number'.
+src/app/admin/orders/page.tsx(445,37): error TS2339: Property 'imageUrl' does not exist on type 'OrderItem'.
+src/app/admin/orders/page.tsx(446,50): error TS2339: Property 'imageUrl' does not exist on type 'OrderItem'.
+src/app/admin/orders/page.tsx(514,31): error TS2304: Cannot find name 'Loader2'.

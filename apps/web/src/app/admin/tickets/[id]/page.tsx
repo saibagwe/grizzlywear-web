@@ -24,8 +24,8 @@ function statusColor(status: string) {
     case 'open':        return 'bg-green-100 text-green-800 border-green-200';
     case 'in-progress': return 'bg-blue-100 text-blue-800 border-blue-200';
     case 'resolved':    return 'bg-purple-100 text-purple-800 border-purple-200';
-    case 'closed':      return 'bg-gray-100 text-gray-600 border-gray-200';
-    default:            return 'bg-gray-100 text-gray-700 border-gray-200';
+    case 'closed':      return 'bg-gray-100 text-[var(--text-secondary)] border-[var(--border)]';
+    default:            return 'bg-gray-100 text-gray-700 border-[var(--border)]';
   }
 }
 
@@ -33,8 +33,8 @@ function priorityColor(priority: string) {
   switch (priority) {
     case 'high':   return 'bg-red-100 text-red-700 border-red-200';
     case 'medium': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-    case 'low':    return 'bg-gray-100 text-gray-600 border-gray-200';
-    default:       return 'bg-gray-100 text-gray-600 border-gray-200';
+    case 'low':    return 'bg-gray-100 text-[var(--text-secondary)] border-[var(--border)]';
+    default:       return 'bg-gray-100 text-[var(--text-secondary)] border-[var(--border)]';
   }
 }
 
@@ -156,12 +156,12 @@ export default function AdminTicketDetailPage() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border border-gray-200 p-6">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
               <Skeleton className="h-6 w-3/4 mb-4" />
               <Skeleton className="h-4 w-full mb-2" />
               <Skeleton className="h-4 w-2/3" />
             </div>
-            <div className="bg-white border border-gray-200 p-6 space-y-4">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex gap-3">
                   <Skeleton className="h-8 w-8 rounded-full shrink-0" />
@@ -174,7 +174,7 @@ export default function AdminTicketDetailPage() {
             </div>
           </div>
           <div className="space-y-4">
-            <div className="bg-white border border-gray-200 p-6">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-8 w-full mb-3" />
               <Skeleton className="h-8 w-full" />
@@ -188,8 +188,8 @@ export default function AdminTicketDetailPage() {
   if (!ticket) {
     return (
       <div className="text-center py-24">
-        <p className="text-gray-400 font-light uppercase tracking-widest text-sm mb-1">Ticket not found</p>
-        <Link href="/admin/tickets" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors">
+        <p className="text-[var(--text-muted)] font-light uppercase tracking-widest text-sm mb-1">Ticket not found</p>
+        <Link href="/admin/tickets" className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
           ← Back to tickets
         </Link>
       </div>
@@ -201,7 +201,7 @@ export default function AdminTicketDetailPage() {
       {/* Back link */}
       <Link
         href="/admin/tickets"
-        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors mb-6"
+        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors mb-6"
       >
         <ArrowLeft size={14} /> All Tickets
       </Link>
@@ -209,7 +209,7 @@ export default function AdminTicketDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)] tracking-tight flex items-center gap-3">
             <span className="font-mono">{ticket.ticketId}</span>
             <span className={cn('inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest border', statusColor(ticket.status))}>
               {ticket.status}
@@ -218,7 +218,7 @@ export default function AdminTicketDetailPage() {
               {ticket.priority}
             </span>
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{ticket.subject}</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{ticket.subject}</p>
         </div>
       </div>
 
@@ -226,49 +226,49 @@ export default function AdminTicketDetailPage() {
         {/* Main: Description + Conversation */}
         <div className="lg:col-span-2 space-y-6">
           {/* Description */}
-          <div className="bg-white border border-gray-200 p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Original Description</h3>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-3">Original Description</h3>
             <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
           </div>
 
           {/* Conversation */}
-          <div className="bg-white border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200 bg-[#F9F9F9]">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)]">
+            <div className="px-6 py-4 border-b border-[var(--border)] bg-[#F9F9F9]">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                 Conversation ({ticket.messages.length} {ticket.messages.length === 1 ? 'message' : 'messages'})
               </h3>
             </div>
 
             <div className="p-6 space-y-6 max-h-[500px] overflow-y-auto">
               {ticket.messages.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-8">No messages yet. Send the first reply below.</p>
+                <p className="text-center text-[var(--text-muted)] text-sm py-8">No messages yet. Send the first reply below.</p>
               ) : (
                 ticket.messages.map((msg, idx) => (
                   <div key={idx} className={cn('flex gap-3', msg.senderRole === 'admin' ? 'flex-row-reverse' : '')}>
                     <div className={cn(
                       'w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold',
-                      msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-200 text-gray-600'
+                      msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-200 text-[var(--text-secondary)]'
                     )}>
                       {msg.senderRole === 'admin' ? <Shield size={14} /> : <User size={14} />}
                     </div>
                     <div className={cn('flex-1 max-w-[80%]', msg.senderRole === 'admin' ? 'text-right' : '')}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={cn('text-xs font-bold', msg.senderRole === 'admin' ? 'text-black' : 'text-gray-700')}>
+                        <span className={cn('text-xs font-bold', msg.senderRole === 'admin' ? 'text-[var(--text-primary)]' : 'text-gray-700')}>
                           {msg.senderName}
                         </span>
                         <span className={cn(
                           'text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5',
-                          msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'
+                          msg.senderRole === 'admin' ? 'bg-black text-white' : 'bg-gray-100 text-[var(--text-secondary)]'
                         )}>
                           {msg.senderRole}
                         </span>
-                        <span className="text-[10px] text-gray-400">{formatDateTime(msg.createdAt)}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{formatDateTime(msg.createdAt)}</span>
                       </div>
                       <div className={cn(
                         'p-3 text-sm whitespace-pre-wrap leading-relaxed',
                         msg.senderRole === 'admin'
                           ? 'bg-black text-white'
-                          : 'bg-[#F9F9F9] border border-gray-200 text-gray-800'
+                          : 'bg-[#F9F9F9] border border-[var(--border)] text-gray-800'
                       )}>
                         {msg.text}
                       </div>
@@ -280,14 +280,14 @@ export default function AdminTicketDetailPage() {
             </div>
 
             {/* Reply box */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-[#F9F9F9]">
+            <div className="px-6 py-4 border-t border-[var(--border)] bg-[#F9F9F9]">
               <div className="flex gap-3">
                 <textarea
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   placeholder="Type your reply..."
                   rows={3}
-                  className="flex-1 border border-gray-200 bg-white px-4 py-3 text-sm focus:outline-none focus:border-black transition-colors resize-none"
+                  className="flex-1 border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-sm focus:outline-none focus:border-black transition-colors resize-none"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                       handleSendReply();
@@ -302,7 +302,7 @@ export default function AdminTicketDetailPage() {
                   {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400 mt-2">Press Ctrl+Enter to send</p>
+              <p className="text-[10px] text-[var(--text-muted)] mt-2">Press Ctrl+Enter to send</p>
             </div>
           </div>
         </div>
@@ -310,38 +310,38 @@ export default function AdminTicketDetailPage() {
         {/* Sidebar: Ticket Info + Controls */}
         <div className="space-y-4">
           {/* Ticket Info */}
-          <div className="bg-white border border-gray-200 p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Ticket Details</h3>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-4">Ticket Details</h3>
             <div className="space-y-4 text-sm">
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">Customer</dt>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Customer</dt>
                 <dd className="font-medium">{ticket.customerName}</dd>
-                <dd className="text-xs text-gray-500">{ticket.customerEmail}</dd>
+                <dd className="text-xs text-[var(--text-secondary)]">{ticket.customerEmail}</dd>
               </div>
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">Category</dt>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Category</dt>
                 <dd className="font-medium">{categoryLabel(ticket.category)}</dd>
               </div>
               {ticket.orderId && (
                 <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">Order ID</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Order ID</dt>
                   <dd className="font-medium font-mono">{ticket.orderId}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">Created</dt>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Created</dt>
                 <dd className="font-medium">{formatDateTime(ticket.createdAt)}</dd>
               </div>
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">Updated</dt>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Updated</dt>
                 <dd className="font-medium">{formatDateTime(ticket.updatedAt)}</dd>
               </div>
             </div>
           </div>
 
           {/* Status Control */}
-          <div className="bg-white border border-gray-200 p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Update Status</h3>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-4">Update Status</h3>
             <select
               value={ticket.status}
               onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
@@ -358,15 +358,15 @@ export default function AdminTicketDetailPage() {
               <option value="closed">Closed</option>
             </select>
             {updatingStatus && (
-              <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+              <p className="text-[10px] text-[var(--text-muted)] mt-1 flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" /> Updating…
               </p>
             )}
           </div>
 
           {/* Priority Control */}
-          <div className="bg-white border border-gray-200 p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Update Priority</h3>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] mb-4">Update Priority</h3>
             <select
               value={ticket.priority}
               onChange={(e) => handlePriorityChange(e.target.value as TicketPriority)}
@@ -382,7 +382,7 @@ export default function AdminTicketDetailPage() {
               <option value="high">High</option>
             </select>
             {updatingPriority && (
-              <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+              <p className="text-[10px] text-[var(--text-muted)] mt-1 flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" /> Updating…
               </p>
             )}

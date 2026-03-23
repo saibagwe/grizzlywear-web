@@ -8,8 +8,10 @@ import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2 } from 'luci
 import { toast } from 'sonner';
 
 import { subscribeToProducts, getProductBySlug, type FirestoreProduct } from '@/lib/firestore/productService';
+import { submitReview, subscribeToProductReviews, type FirestoreReview } from '@/lib/firestore/reviewService';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 
 // We need to map Firestore product to the shape the cart expects.
@@ -28,6 +30,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [product, setProduct] = useState<FirestoreProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
+  const [approvedReviews, setApprovedReviews] = useState<FirestoreReview[]>([]);
 
   // State
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -38,9 +41,16 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [sizeError, setSizeError] = useState(false);
 
+  // Review Form State
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState('');
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   // Stores
   const addItem = useCartStore(s => s.addItem);
   const { wishlistedIds, toggleFavorite: toggleWishlist } = useWishlistStore();
+  const { user, initialized } = useAuthStore();
 
   // Fetch product by slug
   useEffect(() => {
@@ -57,15 +67,25 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     return () => unsub();
   }, []);
 
+  // Fetch approved reviews
+  useEffect(() => {
+    if (!product) return;
+    const unsub = subscribeToProductReviews(product.id, (revs) => {
+      setApprovedReviews(revs);
+    });
+    return () => unsub();
+  }, [product]);
+
   const isWishlisted = product ? wishlistedIds.includes(product.id) : false;
 
   // Reviews — Firestore reviews collection would be a future enhancement.
   // For now, show empty state gracefully.
-  const productReviews: never[] = [];
   const REVIEWS_PER_PAGE = 3;
-  const totalReviewPages = Math.ceil(productReviews.length / REVIEWS_PER_PAGE);
+  const totalReviewPages = Math.ceil(approvedReviews.length / REVIEWS_PER_PAGE);
 
-  const avgRating = product?.rating ?? 0;
+  const avgRating = approvedReviews.length > 0 
+    ? approvedReviews.reduce((sum, r) => sum + r.rating, 0) / approvedReviews.length 
+    : 0;
 
   // Related Products
   const relatedProducts = useMemo(() => {
@@ -139,6 +159,33 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
 
   const toggleTab = (tab: 'details' | 'shipping' | 'sizes') => {
     setActiveTab(activeTab === tab ? null : tab);
+  };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product || !user) return;
+    setSubmittingReview(true);
+    try {
+      await submitReview({
+        productId: product.id,
+        productName: product.name,
+        userId: user.uid,
+        customerName: user.displayName || 'Customer',
+        customerEmail: user.email || '',
+        rating: reviewRating,
+        title: reviewTitle,
+        comment: reviewComment,
+      });
+      toast.success('Your review has been submitted and is pending approval');
+      setShowReviewModal(false);
+      setReviewRating(5);
+      setReviewTitle('');
+      setReviewComment('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   // Loading state
@@ -237,7 +284,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                   </div>
                   <span className="text-gray-400">|</span>
                   <a href="#reviews" className="text-gray-500 hover:text-black underline underline-offset-4 decoration-gray-300">
-                    {product.reviewCount} Reviews
+                    {approvedReviews.length} Reviews
                   </a>
                 </div>
               </div>
@@ -382,26 +429,54 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           <div>
             <h2 className="text-3xl font-light tracking-tight mb-2">Customer Reviews</h2>
             <div className="flex items-center gap-3">
-              <div className="flex text-black">
+              <div className="flex text-yellow-500">
                 {[1, 2, 3, 4, 5].map(s => (
                   <Star key={s} size={18} className={s <= Math.round(avgRating) ? "fill-current" : "text-gray-200 fill-current"} />
                 ))}
               </div>
               <span className="text-lg font-medium">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'} out of 5</span>
-              <span className="text-sm text-gray-500">Based on {product.reviewCount} reviews</span>
+              <span className="text-sm text-gray-500">Based on {approvedReviews.length} reviews</span>
             </div>
           </div>
-          <button
-            onClick={() => setShowReviewModal(true)}
-            className="border border-black px-8 py-4 text-xs tracking-widest uppercase font-bold hover:bg-black hover:text-white transition-colors"
-          >
-            Write a Review
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            {initialized && user ? (
+              <button
+                onClick={() => setShowReviewModal(true)}
+                className="border border-black px-8 py-4 text-xs tracking-widest uppercase font-bold hover:bg-black hover:text-white transition-colors"
+              >
+                Write a Review
+              </button>
+            ) : (
+              <p className="text-sm text-gray-500">Please login to leave a review.</p>
+            )}
+          </div>
         </div>
 
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500 text-sm">No reviews yet. Be the first to share your experience!</p>
-        </div>
+        {approvedReviews.length === 0 ? (
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
+            <p className="text-gray-500 text-sm">No reviews yet. Be the first to review this product!</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {approvedReviews.map((review) => {
+              const date = review.createdAt?.toDate ? review.createdAt.toDate() : new Date(review.createdAt);
+              return (
+                <div key={review.id} className="border-b border-gray-100 pb-8 last:border-0 last:pb-0">
+                  <div className="flex text-yellow-500 mb-2">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Star key={s} size={14} className={s <= review.rating ? "fill-current" : "text-gray-200 fill-current"} />
+                    ))}
+                  </div>
+                  <h4 className="font-bold text-lg mb-2">{review.title}</h4>
+                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">{review.comment}</p>
+                  <p className="text-xs text-gray-400 capitalize">
+                    By <strong className="text-gray-800">{review.customerName}</strong> on {date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* YOU MIGHT ALSO LIKE */}
@@ -435,22 +510,31 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           <div className="bg-white w-full max-w-lg p-8 relative z-10">
             <button onClick={() => setShowReviewModal(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
             <h3 className="text-2xl font-light mb-6">Write a Review</h3>
-            <form onSubmit={(e) => { e.preventDefault(); toast.success('Review submitted for moderation.'); setShowReviewModal(false); }} className="space-y-4">
+            <form onSubmit={handleReviewSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-widest font-bold mb-2">Rating</label>
-                <div className="flex text-gray-300">
-                  {[1, 2, 3, 4, 5].map(s => <Star key={s} size={24} className="cursor-pointer hover:text-black hover:fill-current transition-colors" />)}
+                <div className="flex text-yellow-500">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star 
+                      key={s} 
+                      size={24} 
+                      onClick={() => setReviewRating(s)}
+                      className={cn("cursor-pointer transition-colors", s <= reviewRating ? "fill-current" : "text-gray-200 fill-current")} 
+                    />
+                  ))}
                 </div>
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest font-bold mb-2">Title</label>
-                <input required type="text" className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black" placeholder="Summarize your experience" />
+                <input required value={reviewTitle} onChange={(e) => setReviewTitle(e.target.value)} type="text" className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black" placeholder="Summarize your experience" />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest font-bold mb-2">Review</label>
-                <textarea required rows={4} className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black resize-none" placeholder="Tell us what you liked or disliked"></textarea>
+                <textarea required value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} rows={4} className="w-full border border-gray-200 p-3 text-sm focus:outline-none focus:border-black resize-none" placeholder="Tell us what you liked or disliked"></textarea>
               </div>
-              <button type="submit" className="w-full bg-black text-white font-bold uppercase tracking-widest text-xs py-4 hover:bg-gray-800 transition-colors">Submit Review</button>
+              <button disabled={submittingReview} type="submit" className="w-full bg-black text-white font-bold uppercase tracking-widest text-xs py-4 hover:bg-gray-800 transition-colors disabled:opacity-50">
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
             </form>
           </div>
         </div>

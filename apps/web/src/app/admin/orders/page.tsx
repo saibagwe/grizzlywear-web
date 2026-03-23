@@ -15,7 +15,8 @@ import {
   Calendar,
   CheckCircle2,
   Package,
-  CalendarDays
+  CalendarDays,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -64,33 +65,33 @@ function formatDate(ts: any): { date: string, time: string } {
 
 function SkeletonStat() {
   return (
-    <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-gray-100">
+    <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-[var(--border)]">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-full bg-gray-50 animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-[var(--bg)] animate-pulse" />
         <div className="h-4 w-20 bg-gray-100 animate-pulse rounded" />
       </div>
-      <div className="h-8 w-24 bg-gray-50 animate-pulse rounded" />
+      <div className="h-8 w-24 bg-[var(--bg)] animate-pulse rounded" />
     </div>
   );
 }
 
 function SkeletonRow() {
   return (
-    <tr className="border-b border-gray-100/50">
-      <td className="px-6 py-5"><div className="h-4 w-24 bg-gray-50 animate-pulse rounded" /></td>
+    <tr className="border-b border-[var(--border)]/50">
+      <td className="px-6 py-5"><div className="h-4 w-24 bg-[var(--bg)] animate-pulse rounded" /></td>
       <td className="px-6 py-5">
-        <div className="h-4 w-32 bg-gray-50 animate-pulse rounded mb-2" />
-        <div className="h-3 w-24 bg-gray-50/50 animate-pulse rounded" />
+        <div className="h-4 w-32 bg-[var(--bg)] animate-pulse rounded mb-2" />
+        <div className="h-3 w-24 bg-[var(--bg)]/50 animate-pulse rounded" />
       </td>
       <td className="px-6 py-5">
-        <div className="h-4 w-20 bg-gray-50 animate-pulse rounded mb-1" />
-        <div className="h-3 w-16 bg-gray-50/50 animate-pulse rounded" />
+        <div className="h-4 w-20 bg-[var(--bg)] animate-pulse rounded mb-1" />
+        <div className="h-3 w-16 bg-[var(--bg)]/50 animate-pulse rounded" />
       </td>
-      <td className="px-6 py-5"><div className="h-10 w-10 bg-gray-50 animate-pulse rounded" /></td>
-      <td className="px-6 py-5"><div className="h-6 w-16 bg-gray-50 animate-pulse rounded-full" /></td>
-      <td className="px-6 py-5"><div className="h-6 w-20 bg-gray-50 animate-pulse rounded-full" /></td>
-      <td className="px-6 py-5 text-right"><div className="h-4 w-16 bg-gray-50 animate-pulse rounded ml-auto" /></td>
-      <td className="px-6 py-5 text-right"><div className="h-8 w-20 bg-gray-50 animate-pulse rounded ml-auto" /></td>
+      <td className="px-6 py-5"><div className="h-10 w-10 bg-[var(--bg)] animate-pulse rounded" /></td>
+      <td className="px-6 py-5"><div className="h-6 w-16 bg-[var(--bg)] animate-pulse rounded-full" /></td>
+      <td className="px-6 py-5"><div className="h-6 w-20 bg-[var(--bg)] animate-pulse rounded-full" /></td>
+      <td className="px-6 py-5 text-right"><div className="h-4 w-16 bg-[var(--bg)] animate-pulse rounded ml-auto" /></td>
+      <td className="px-6 py-5 text-right"><div className="h-8 w-20 bg-[var(--bg)] animate-pulse rounded ml-auto" /></td>
     </tr>
   );
 }
@@ -171,7 +172,8 @@ export default function AdminOrdersPage() {
     // Dates
     if (fromDate || toDate) {
       result = result.filter(o => {
-        const orderDate = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
+        const createdAt = (o as any).createdAt;
+        const orderDate = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
         if (fromDate && orderDate < new Date(fromDate)) return false;
         if (toDate) {
           const end = new Date(toDate);
@@ -240,16 +242,16 @@ export default function AdminOrdersPage() {
   }, [allOrders]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-[#1A1A2E] tracking-tight">Orders Management</h1>
-          <p className="text-sm text-gray-500 mt-1 font-medium">Monitor and process your store's sales records</p>
+          <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Orders Management</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Monitor and process your store's sales records</p>
         </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 bg-[var(--bg-card)] px-4 py-2 rounded-full shadow-sm border border-[var(--border)]">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[#1A1A2E]">Live Updates Active</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-primary)]">Live Updates Active</span>
         </div>
       </div>
 
@@ -257,78 +259,78 @@ export default function AdminOrdersPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {loading ? [1, 2, 3, 4].map(i => <SkeletonStat key={i} />) : (
           <>
-            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-black hover:translate-y-[-2px] transition-transform">
+            <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-black hover:translate-y-[-2px] transition-transform">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-black">
+                <div className="w-10 h-10 rounded-full bg-[var(--bg)] flex items-center justify-center text-[var(--text-primary)]">
                   <Package size={20} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Orders</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Total Orders</span>
               </div>
-              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.total}</p>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.total}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-orange-500 hover:translate-y-[-2px] transition-transform">
+            <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-orange-500 hover:translate-y-[-2px] transition-transform">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
                   <Clock size={20} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Pending</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Pending</span>
               </div>
-              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.pending}</p>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.pending}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-green-500 hover:translate-y-[-2px] transition-transform">
+            <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border-l-4 border-green-500 hover:translate-y-[-2px] transition-transform">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-500">
                   <IndianRupee size={20} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Revenue</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Total Revenue</span>
               </div>
-              <p className="text-3xl font-bold text-[#1A1A2E]">₹{stats.revenue.toLocaleString('en-IN')}</p>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">₹{stats.revenue.toLocaleString('en-IN')}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-[0_2px_8_rgba(0,0,0,0.08)] border-l-4 border-blue-500 hover:translate-y-[-2px] transition-transform">
+            <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-[0_2px_8_rgba(0,0,0,0.08)] border-l-4 border-blue-500 hover:translate-y-[-2px] transition-transform">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
                   <CheckCircle2 size={20} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Delivered</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Delivered</span>
               </div>
-              <p className="text-3xl font-bold text-[#1A1A2E]">{stats.delivered}</p>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">{stats.delivered}</p>
             </div>
           </>
         )}
       </div>
 
       {/* ── Filters Section ── */}
-      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 p-6 mb-8">
+      <div className="bg-[var(--bg-card)] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[var(--border)] p-6 mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
           <div className="flex flex-col sm:flex-row items-center gap-4 flex-1 max-w-2xl">
             <div className="relative flex-1 w-full">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
               <input 
                 type="text" 
                 placeholder="Search Order ID, name or email..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#F8F9FA] border-none rounded-lg pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all"
+                className="w-full bg-[var(--bg)] border-none rounded-lg pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-black transition-all"
               />
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-40">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={14} />
                 <input 
                   type="date" 
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full bg-[#F8F9FA] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
+                  className="w-full bg-[var(--bg)] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
                 />
               </div>
-              <span className="text-gray-400 text-xs font-bold">TO</span>
+              <span className="text-[var(--text-muted)] text-xs font-bold">TO</span>
               <div className="relative flex-1 sm:w-40">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={14} />
                 <input 
                   type="date" 
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="w-full bg-[#F8F9FA] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
+                  className="w-full bg-[var(--bg)] border-none rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-black transition-all"
                 />
               </div>
             </div>
@@ -337,8 +339,8 @@ export default function AdminOrdersPage() {
 
         <div className="flex flex-wrap items-center gap-8 border-t border-gray-50 pt-6">
           <div className="flex items-center gap-2">
-            <CalendarDays size={14} className="text-gray-400" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">Quick:</span>
+            <CalendarDays size={14} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mr-2">Quick:</span>
             <div className="flex flex-wrap gap-2">
               {QUICK_FILTERS.map(q => (
                 <button 
@@ -348,7 +350,7 @@ export default function AdminOrdersPage() {
                     "px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border",
                     activeQuickFilter === q.label 
                       ? "bg-black text-white border-black shadow-lg" 
-                      : "bg-white text-gray-500 border-gray-100 hover:border-black"
+                      : "bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-black"
                   )}
                 >
                   {q.label}
@@ -357,8 +359,8 @@ export default function AdminOrdersPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Filter size={14} className="text-gray-400" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-2">Status:</span>
+            <Filter size={14} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mr-2">Status:</span>
             <div className="flex flex-wrap gap-2">
               {STATUS_OPTIONS.map(opt => (
                 <button 
@@ -368,7 +370,7 @@ export default function AdminOrdersPage() {
                     "px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border",
                     statusFilter === opt.value
                       ? "bg-black text-white border-black shadow-lg" 
-                      : "bg-white text-gray-500 border-gray-100 hover:border-black"
+                      : "bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-black"
                   )}
                 >
                   {opt.label}
@@ -380,11 +382,11 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* ── Orders Table ── */}
-      <div className="bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
             <thead>
-              <tr className="bg-[#F8F9FA] border-b border-gray-100 text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                 <th className="px-6 py-5">Order ID</th>
                 <th className="px-6 py-5">Customer</th>
                 <th className="px-6 py-5">Date & Time</th>
@@ -395,17 +397,17 @@ export default function AdminOrdersPage() {
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {loading ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />) : 
                filtered.length === 0 ? (
                  <tr>
                    <td colSpan={8} className="py-32 text-center">
                      <div className="flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                        <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center text-gray-300 mb-4">
                           <ShoppingCart size={32} />
                         </div>
-                        <h3 className="text-lg font-bold text-[#1A1A2E]">No orders found</h3>
-                        <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search terms</p>
+                        <h3 className="text-lg font-bold text-[var(--text-primary)]">No orders found</h3>
+                        <p className="text-sm text-[var(--text-muted)] mt-1">Try adjusting your filters or search terms</p>
                      </div>
                    </td>
                  </tr>
@@ -414,13 +416,13 @@ export default function AdminOrdersPage() {
                   const { date, time } = formatDate(order.createdAt);
                   const isUpdating = updatingId === order.id;
                   return (
-                    <tr key={order.id} className="hover:bg-[#F8F9FA]/60 transition-colors group">
+                    <tr key={order.id} className="hover:bg-[var(--bg)]/60 transition-colors group">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-gray-900">{order.orderId}</span>
+                          <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{order.orderId}</span>
                           <button 
                             onClick={() => copyToClipboard(order.orderId)}
-                            className="p-1 hover:bg-white rounded text-gray-400 hover:text-black transition-all opacity-0 group-hover:opacity-100"
+                            className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all opacity-0 group-hover:opacity-100"
                           >
                             <Copy size={12} />
                           </button>
@@ -428,22 +430,22 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-[#1A1A2E]">{order.customerName}</span>
-                          <span className="text-[11px] text-gray-400 font-medium">{order.customerEmail}</span>
+                          <span className="text-sm font-bold text-[var(--text-primary)]">{order.customerName}</span>
+                          <span className="text-[11px] text-[var(--text-muted)] font-medium">{order.customerEmail}</span>
                         </div>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-[#1A1A2E]">{date}</span>
-                          <span className="text-[11px] text-gray-400 font-medium uppercase">{time}</span>
+                          <span className="text-sm font-bold text-[var(--text-primary)]">{date}</span>
+                          <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase">{time}</span>
                         </div>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center -space-x-3 overflow-hidden">
                           {order.items.slice(0, 3).map((item, idx) => (
                             <div key={idx} className="relative w-8 h-10 bg-gray-100 border-2 border-white rounded-sm overflow-hidden flex-shrink-0">
-                              {item.imageUrl ? (
-                                <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                              {(item as any).imageUrl ? (
+                                <Image src={(item as any).imageUrl} alt={item.name} fill className="object-cover" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-300">P</div>
                               )}
@@ -477,12 +479,12 @@ export default function AdminOrdersPage() {
                           )}
                         >
                           {STATUS_OPTIONS.filter(o => o.value).map(opt => (
-                            <option key={opt.value} value={opt.value} className="text-black bg-white">{opt.label}</option>
+                            <option key={opt.value} value={opt.value} className="text-[var(--text-primary)] bg-[var(--bg-card)]">{opt.label}</option>
                           ))}
                         </select>
                       </td>
                       <td className="px-6 py-5 text-right">
-                        <span className="text-sm font-bold text-[#1A1A2E]">₹{order.total.toLocaleString('en-IN')}</span>
+                        <span className="text-sm font-bold text-[var(--text-primary)]">₹{order.total.toLocaleString('en-IN')}</span>
                       </td>
                       <td className="px-6 py-5 text-right">
                         <Link 
@@ -501,15 +503,15 @@ export default function AdminOrdersPage() {
         </div>
 
         {/* ── Table Footer ── */}
-        <div className="px-6 py-6 bg-[#F8F9FA] border-t border-gray-50 flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">
+        <div className="px-6 py-6 bg-[var(--bg)] border-t border-gray-50 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
             {loading ? 'Processing...' : `Showing ${filtered.length} of ${allOrders.length} records`}
           </span>
           {hasMore && !loading && (
             <button 
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="flex items-center gap-2 px-6 py-3 bg-white text-black border border-gray-200 rounded-lg text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-gray-50 transition-all shadow-sm"
+              className="flex items-center gap-2 px-6 py-3 bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[var(--bg)] transition-all shadow-sm"
             >
               {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={14} />}
               Load More Results
