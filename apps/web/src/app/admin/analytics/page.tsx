@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 
-type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
 interface OrderItem {
   id: string;
@@ -60,7 +60,7 @@ const COLORS = {
 
 const STATUS_COLORS = {
   pending: COLORS.orange,
-  processing: COLORS.blue,
+  confirmed: COLORS.blue,
   shipped: COLORS.purple,
   delivered: COLORS.green,
   cancelled: COLORS.red,
@@ -211,10 +211,12 @@ export default function AnalyticsPage() {
   }, [filteredUsers]);
 
   const orderStatusBreakdown = useMemo(() => {
-    const counts = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    const counts = { pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
     filteredOrders.forEach(o => {
-      if (counts[o.status] !== undefined) {
-        counts[o.status]++;
+      let st = o.status;
+      if ((st as any) === 'processing') st = 'confirmed';
+      if (counts[st] !== undefined) {
+        counts[st]++;
       }
     });
     return Object.entries(counts).filter(([_, count]) => count > 0).map(([name, value]) => ({

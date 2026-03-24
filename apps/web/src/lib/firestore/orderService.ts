@@ -41,12 +41,12 @@ export type ShippingAddress = {
 
 export type OrderStatus =
   | 'pending'
-  | 'processing'
+  | 'confirmed'
   | 'shipped'
   | 'delivered'
   | 'cancelled';
 
-export type PaymentStatus = 'paid' | 'unpaid' | 'refunded';
+export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'cancelled';
 
 export type FirestoreOrder = {
   id: string; // Firestore document ID
@@ -71,6 +71,41 @@ export type FirestoreOrder = {
 };
 
 export type OrderInput = Omit<FirestoreOrder, 'id' | 'createdAt' | 'updatedAt'>;
+
+export function getAvailableStatuses(currentStatus: OrderStatus): OrderStatus[] {
+  switch (currentStatus) {
+    case 'pending':
+      return ['pending', 'confirmed'];
+    case 'confirmed':
+      return ['confirmed', 'shipped'];
+    case 'shipped':
+      return ['shipped', 'delivered'];
+    case 'delivered':
+      return ['delivered'];
+    case 'cancelled':
+      return ['cancelled'];
+    default:
+      return [currentStatus];
+  }
+}
+
+export function derivePaymentStatus(status: string, paymentMethod: string, currentPaymentStatus?: string): PaymentStatus {
+  const isOnline = paymentMethod === 'online' || paymentMethod === 'razorpay' || paymentMethod === 'card' || paymentMethod === 'upi';
+  
+  if (!isOnline) { // COD
+    if (status === 'delivered') return 'paid';
+    if (status === 'cancelled') return 'cancelled';
+    return 'pending';
+  } else { // Online
+    if (status === 'cancelled') {
+      return (currentPaymentStatus === 'paid' || currentPaymentStatus === 'paid_online') ? 'refunded' : 'cancelled';
+    }
+    if (status === 'pending') {
+      return (currentPaymentStatus === 'paid' || currentPaymentStatus === 'paid_online') ? 'paid' : 'pending';
+    }
+    return 'paid'; // confirmed, shipped, delivered are all paid
+  }
+}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -98,9 +133,13 @@ function docToOrder(id: string, data: DocumentData): FirestoreOrder {
     shipping: data.shipping ?? pricing.shippingCharge ?? 0,
     discount: data.discount ?? pricing.discount ?? 0,
     total: data.total ?? pricing.total ?? 0,
-    status: data.status ?? 'pending',
+    status: data.status === 'processing' ? 'confirmed' : (data.status ?? 'pending'),
     paymentMethod: data.paymentMethod ?? data.payment?.method ?? 'cod',
-    paymentStatus: data.paymentStatus ?? (data.payment?.status === 'paid' ? 'paid' : 'unpaid'),
+    paymentStatus: (() => {
+      let pm = data.paymentMethod ?? data.payment?.method ?? 'cod';
+      let stat = data.status === 'processing' ? 'confirmed' : (data.status ?? 'pending');
+      return derivePaymentStatus(stat, pm, data.paymentStatus);
+    })(),
     shippingAddress: {
       name: addr.name ?? '',
       address: addr.address || addr.line1 || '',
@@ -284,20 +323,46 @@ export async function updateOrderStatus(
   id: string,
   status: OrderStatus
 ): Promise<void> {
-  await updateDoc(doc(db, 'orders', id), {
+  const snap = await getDoc(doc(db, 'orders', id));
+  if (!snap.exists()) throw new Error('Order not found');
+  const currentData = snap.data();
+  const currentStatus = currentData.status === 'processing' ? 'confirmed' : (currentData.status as OrderStatus);
+  
+  const allowed = getAvailableStatuses(currentStatus);
+  if (!allowed.includes(status)) {
+    throw new Error(`Invalid status transition from ${currentStatus} to ${status}`);
+  }
+
+  const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
+  const newPaymentStatus = derivePaymentStatus(status, paymentMethod, currentData.paymentStatus);
+
+  const modifications: any = {
     status,
+    paymentStatus: newPaymentStatus,
     updatedAt: serverTimestamp(),
-  });
+  };
+
+  await updateDoc(doc(db, 'orders', id), modifications);
 }
 
-// ─── UPDATE PAYMENT STATUS ────────────────────────────────────────────────────
+// ─── CANCEL ORDER (USER) ──────────────────────────────────────────────────────
 
-export async function updatePaymentStatus(
-  id: string,
-  paymentStatus: PaymentStatus
-): Promise<void> {
+export async function cancelOrder(id: string): Promise<void> {
+  const snap = await getDoc(doc(db, 'orders', id));
+  if (!snap.exists()) throw new Error('Order not found');
+  const currentData = snap.data();
+  const currentStatus = currentData.status === 'processing' ? 'confirmed' : (currentData.status as OrderStatus);
+  
+  if (currentStatus !== 'pending' && currentStatus !== 'confirmed') {
+    throw new Error('Order cannot be cancelled at this stage.');
+  }
+
+  const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
+  const newPaymentStatus = derivePaymentStatus('cancelled', paymentMethod, currentData.paymentStatus);
+
   await updateDoc(doc(db, 'orders', id), {
-    paymentStatus,
+    status: 'cancelled',
+    paymentStatus: newPaymentStatus,
     updatedAt: serverTimestamp(),
   });
 }

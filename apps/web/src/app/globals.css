@@ -174,3 +174,74 @@
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
+
+/* Touch Targets on Mobile */
+@media (max-width: 767px) {
+  button, a {
+    min-height: 44px;
+  }
+  
+  .mobile-card-table {
+    display: block  !important;
+    width: 100% !important;
+  }
+  .mobile-card-table table, 
+  .mobile-card-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+  .mobile-card-table thead {
+    display: none !important;
+  }
+  .mobile-card-table tr {
+    display: flex !important;
+    flex-direction: column;
+    margin-bottom: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.5rem 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  }
+  .mobile-card-table tr:hover {
+    background: var(--bg-card) !important;
+    transform: translateY(-2px);
+  }
+  .mobile-card-table td {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0 !important;
+    border-bottom: 1px solid var(--bg) !important;
+    white-space: normal !important;
+    border-top: none !important;
+  }
+  .mobile-card-table td:last-child {
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+  }
+  .mobile-card-table td:first-child {
+    padding-top: 0 !important;
+  }
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    margin-right: auto;
+    flex-shrink: 0;
+    padding-right: 1rem;
+  }
+  .mobile-card-table td > div {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    text-align: right;
+  }
+  .mobile-card-table select, 
+  .mobile-card-table button {
+    width: 100%;
+  }
+}

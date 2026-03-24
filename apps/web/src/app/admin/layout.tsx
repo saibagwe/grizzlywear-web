@@ -14,10 +14,11 @@ import {
   BarChart3,
   Star,
   MessageSquare,
-  Settings,
   LogOut,
   Sun,
-  Moon
+  Moon,
+  Menu,
+  X
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
@@ -32,7 +33,6 @@ const adminNavItems = [
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/reviews', label: 'Reviews', icon: Star },
   { href: '/admin/tickets', label: 'Tickets', icon: MessageSquare, showTicketBadge: true },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function AdminLayout({
@@ -48,6 +48,14 @@ export default function AdminLayout({
   const [lowStockCount, setLowStockCount] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [themeLoaded, setThemeLoaded] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Initial Responsive State
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
 
   // Theme Persistence
   useEffect(() => {
@@ -122,9 +130,16 @@ export default function AdminLayout({
       <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-card)] border-b border-[var(--border)] h-14 transition-colors">
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1 -ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              aria-label="Toggle Sidebar"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <Link
               href="/admin/dashboard"
-              className="font-bold text-sm tracking-[0.2em] uppercase"
+              className="font-bold text-sm tracking-[0.2em] uppercase hidden sm:block"
             >
               GRIZZLYWEAR
             </Link>
@@ -132,7 +147,7 @@ export default function AdminLayout({
               Admin
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {pendingCount > 0 && (
               <Link
                 href="/admin/orders"
@@ -169,47 +184,73 @@ export default function AdminLayout({
       </header>
 
       <div className="flex pt-14">
+        {/* Mobile Overlay */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 top-14 bg-black/50 z-30 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="fixed left-0 top-14 bottom-0 w-56 bg-[var(--bg-card)] border-r border-[var(--border)] overflow-y-auto hidden lg:block transition-colors">
-          <nav className="py-4 px-3">
-            <ul className="space-y-0.5">
+        <aside 
+          className={cn(
+            "fixed left-0 top-14 bottom-0 bg-[var(--bg-card)] border-r border-[var(--border)] overflow-y-auto transition-all z-40 duration-300 group overflow-x-hidden",
+            isSidebarOpen ? "w-56 translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-16"
+          )}
+        >
+          <nav className="py-4 px-2 sm:px-3">
+            <ul className="space-y-1">
               {adminNavItems.map((item) => {
                 const isActive = pathname?.startsWith(item.href);
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      title={!isSidebarOpen ? item.label : undefined}
+                      onClick={() => {
+                        if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                      }}
                       className={cn(
-                        'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors',
+                        'flex items-center rounded-lg text-sm transition-colors overflow-hidden',
+                        isSidebarOpen ? 'px-3 py-2.5 justify-between' : 'px-0 py-2.5 justify-center',
                         isActive
                           ? 'bg-[var(--text-primary)] text-[var(--bg-card)]'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <item.icon className="w-4 h-4" />
-                        {item.label}
+                      <div className="flex items-center">
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        <span className={cn(
+                          "whitespace-nowrap transition-all duration-300 font-medium",
+                          isSidebarOpen ? "w-auto opacity-100 ml-3" : "w-0 opacity-0 ml-0 inline-block h-5"
+                        )}>
+                          {item.label}
+                        </span>
                       </div>
                       {item.showBadge && pendingCount > 0 && (
                         <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-orange-500 text-white'
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-orange-500 text-white',
+                          !isSidebarOpen && "hidden"
                         )}>
                           {pendingCount}
                         </span>
                       )}
                       {(item as any).showTicketBadge && openTicketCount > 0 && (
                         <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-green-500 text-white'
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-green-500 text-white',
+                          !isSidebarOpen && "hidden"
                         )}>
                           {openTicketCount}
                         </span>
                       )}
                       {(item as any).showLowStockBadge && lowStockCount > 0 && (
                         <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-red-500 text-white'
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
+                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-red-500 text-white',
+                          !isSidebarOpen && "hidden"
                         )}>
                           {lowStockCount}
                         </span>
@@ -223,8 +264,11 @@ export default function AdminLayout({
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 lg:ml-56 min-h-[calc(100vh-3.5rem)]">
-          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
+        <main className={cn(
+          "flex-1 min-h-[calc(100vh-3.5rem)] transition-all duration-300 w-full overflow-hidden",
+          isSidebarOpen ? "lg:ml-56 md:ml-56" : "lg:ml-16 ml-0"
+        )}>
+          <div className="p-4 sm:p-6 lg:p-8 w-full mx-auto max-w-none 2xl:max-w-screen-2xl">
             {children}
           </div>
         </main>

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   subscribeToOrderByOrderId,
+  cancelOrder,
   type FirestoreOrder,
   type OrderStatus,
 } from '@/lib/firestore/orderService';
@@ -17,7 +18,7 @@ import {
 
 const STEPS: { key: OrderStatus | 'placed'; label: string }[] = [
   { key: 'placed', label: 'Order Placed' },
-  { key: 'processing', label: 'Processing' },
+  { key: 'confirmed', label: 'Confirmed' },
   { key: 'shipped', label: 'Shipped' },
   { key: 'delivered', label: 'Delivered' },
 ];
@@ -26,7 +27,8 @@ function getCompletedIndex(status: OrderStatus): number {
   switch (status) {
     case 'pending':
       return 0; // only "Order Placed" completed
-    case 'processing':
+    case 'confirmed':
+    case 'processing' as any: // gracefully map old records
       return 1;
     case 'shipped':
       return 2;
@@ -37,10 +39,11 @@ function getCompletedIndex(status: OrderStatus): number {
   }
 }
 
-function statusBadge(status: OrderStatus) {
-  const map: Record<OrderStatus, { bg: string; text: string; label: string }> = {
+function statusBadge(status: string) {
+  const map: Record<string, { bg: string; text: string; label: string }> = {
     pending: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', label: 'Pending' },
-    processing: { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700', label: 'Processing' },
+    confirmed: { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700', label: 'Confirmed' },
+    processing: { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700', label: 'Confirmed' },
     shipped: { bg: 'bg-indigo-50 border-indigo-100', text: 'text-indigo-700', label: 'In Transit' },
     delivered: { bg: 'bg-green-50 border-green-100', text: 'text-green-700', label: 'Delivered' },
     cancelled: { bg: 'bg-red-50 border-red-100', text: 'text-red-600', label: 'Cancelled' },
@@ -79,6 +82,7 @@ export default function TrackOrderPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [order, setOrder] = useState<FirestoreOrder | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const unsubRef = useRef<(() => void) | null>(null);
   const autoFetchedRef = useRef(false);
 
@@ -149,6 +153,22 @@ export default function TrackOrderPage() {
     setNotFound(false);
     setOrderId('');
     autoFetchedRef.current = false;
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order || !order.id) return;
+    if (!confirm('Are you certain you want to cancel this order? This action cannot be undone.')) return;
+    
+    setIsCancelling(true);
+    try {
+      await cancelOrder(order.id);
+      toast.success('Your order has been cancelled successfully.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to cancel order. You might not have permission, or the order is too far along in processing.');
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const badge = order ? statusBadge(order.status) : null;
@@ -386,14 +406,24 @@ export default function TrackOrderPage() {
               </div>
             </div>
 
-            {/* Reset */}
-            <div className="text-center pt-4">
+            {/* Reset / Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-gray-100">
               <button
                 onClick={handleReset}
-                className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4"
+                className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors px-6 py-3"
               >
                 Track Another Order
               </button>
+              
+              {!isCancelled && (order.status === 'pending' || order.status === 'confirmed' || (order.status as any) === 'processing') && (
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={isCancelling}
+                  className="text-xs font-bold uppercase tracking-widest text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-red-200 px-6 py-3 disabled:opacity-50"
+                >
+                  {isCancelling ? 'Cancelling...' : 'Cancel Order'}
+                </button>
+              )}
             </div>
 
           </div>

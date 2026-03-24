@@ -19,6 +19,33 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function derivePaymentStatus(newStatus, oldData) {
+      let pm = oldData.get('paymentMethod', oldData.get(['payment', 'method'], 'cod'));
+      let isOnline = pm == 'online' || pm == 'razorpay' || pm == 'card' || pm == 'upi';
+      let oldPs = oldData.get('paymentStatus', '');
+      
+      return isOnline ? (
+        newStatus == 'cancelled' ? (
+          (oldPs == 'paid' || oldPs == 'paid_online') ? 'refunded' : 'cancelled'
+        ) :
+        newStatus == 'pending' ? (
+          (oldPs == 'paid' || oldPs == 'paid_online') ? 'paid' : 'pending'
+        ) :
+        'paid'
+      ) : (
+        newStatus == 'delivered' ? 'paid' :
+        newStatus == 'cancelled' ? 'cancelled' :
+        'pending'
+      );
+    }
+
+    function isForwardStatusProgress(oldStatus, newStatus) {
+      return (oldStatus == 'pending' && newStatus == 'confirmed') ||
+             (oldStatus == 'confirmed' && newStatus == 'shipped') ||
+             (oldStatus == 'shipped' && newStatus == 'delivered') ||
+             (oldStatus == newStatus);
+    }
+
     // ─── PRODUCTS COLLECTION ───────────────────────────────────────────────────
     // Anyone can read products. Only admins can write.
 
@@ -63,7 +90,18 @@ service cloud.firestore {
       // Collection query (list): admins can list all;
       // authenticated users can list (needed for userId filter queries in order history).
       allow list: if isAuthenticated();
-      allow update: if isAdmin();
+      allow update: if (isAdmin() && 
+                        isForwardStatusProgress(resource.data.status, request.resource.data.status) &&
+                        request.resource.data.status != 'cancelled' &&
+                        request.resource.data.paymentStatus == derivePaymentStatus(request.resource.data.status, resource.data)
+                      ) || (
+        isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'cancelled' &&
+        (resource.data.status == 'pending' || resource.data.status == 'confirmed' || resource.data.status == 'processing') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paymentStatus', 'updatedAt']) &&
+        request.resource.data.paymentStatus == derivePaymentStatus('cancelled', resource.data)
+      );
       allow delete: if isAdmin();
     }
 

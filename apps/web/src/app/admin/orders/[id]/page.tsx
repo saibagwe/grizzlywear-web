@@ -20,19 +20,19 @@ import { cn } from '@/lib/utils';
 import {
   getOrderById,
   updateOrderStatus,
-  updatePaymentStatus,
+  getAvailableStatuses,
   type FirestoreOrder,
   type OrderStatus,
-  type PaymentStatus,
 } from '@/lib/firestore/orderService';
 
-const ORDER_STATUSES: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-const PAYMENT_STATUSES: PaymentStatus[] = ['paid', 'unpaid', 'refunded'];
+const ORDER_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+// Removed PAYMENT_STATUSES from here
 
 function statusBadgeClass(status: string) {
   switch (status) {
     case 'delivered': return 'bg-green-100 text-green-800';
     case 'shipped': return 'bg-blue-100 text-blue-800';
+    case 'confirmed':
     case 'processing': return 'bg-yellow-100 text-yellow-800';
     case 'cancelled': return 'bg-red-100 text-red-800';
     default: return 'bg-gray-100 text-gray-700';
@@ -43,7 +43,9 @@ function paymentBadgeClass(status: string) {
   switch (status) {
     case 'paid': return 'bg-green-100 text-green-800';
     case 'refunded': return 'bg-blue-100 text-blue-800';
-    default: return 'bg-yellow-100 text-yellow-800';
+    case 'pending': return 'bg-yellow-100 text-yellow-800';
+    case 'cancelled': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-700';
   }
 }
 
@@ -61,9 +63,7 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [updatingPayment, setUpdatingPayment] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('pending');
-  const [selectedPayment, setSelectedPayment] = useState<PaymentStatus>('unpaid');
 
   useEffect(() => {
     if (!id) return;
@@ -74,7 +74,6 @@ export default function AdminOrderDetailPage() {
       } else {
         setOrder(data);
         setSelectedStatus(data.status);
-        setSelectedPayment(data.paymentStatus);
       }
       setLoading(false);
     });
@@ -94,19 +93,7 @@ export default function AdminOrderDetailPage() {
     }
   };
 
-  const handleUpdatePayment = async () => {
-    if (!order || selectedPayment === order.paymentStatus) return;
-    setUpdatingPayment(true);
-    try {
-      await updatePaymentStatus(order.id, selectedPayment);
-      setOrder((prev) => prev ? { ...prev, paymentStatus: selectedPayment } : prev);
-      toast.success(`Payment status updated to "${selectedPayment}".`);
-    } catch {
-      toast.error('Failed to update payment status.');
-    } finally {
-      setUpdatingPayment(false);
-    }
-  };
+
 
   if (loading) {
     return (
@@ -230,7 +217,7 @@ export default function AdminOrderDetailPage() {
               Update Order Status
             </h2>
             <div className="flex flex-wrap gap-2">
-              {ORDER_STATUSES.map((s) => (
+              {getAvailableStatuses(order.status).map((s) => (
                 <button
                   key={s}
                   onClick={() => setSelectedStatus(s)}
@@ -255,36 +242,7 @@ export default function AdminOrderDetailPage() {
             </button>
           </div>
 
-          {/* Update Payment Status */}
-          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">
-              Update Payment Status
-            </h2>
-            <div className="flex gap-2">
-              {PAYMENT_STATUSES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSelectedPayment(s)}
-                  className={cn(
-                    'px-4 py-2 text-[10px] font-bold uppercase tracking-widest border transition-colors',
-                    selectedPayment === s
-                      ? 'bg-black text-white border-black'
-                      : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-black'
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={handleUpdatePayment}
-              disabled={updatingPayment || selectedPayment === order.paymentStatus}
-              className="flex items-center gap-2 bg-black text-white px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors disabled:opacity-40"
-            >
-              {updatingPayment ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {updatingPayment ? 'Updating...' : 'Update Payment'}
-            </button>
-          </div>
+
         </div>
 
         {/* ── Sidebar ── */}

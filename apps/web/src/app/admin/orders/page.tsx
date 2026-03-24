@@ -26,6 +26,7 @@ import {
   subscribeToAllOrders,
   subscribeToMoreOrders,
   updateOrderStatus,
+  getAvailableStatuses,
   ORDERS_PAGE_SIZE,
   type FirestoreOrder,
   type OrderStatus,
@@ -36,7 +37,7 @@ import {
 const STATUS_OPTIONS: { value: '' | OrderStatus; label: string; color: string }[] = [
   { value: '', label: 'All', color: 'bg-gray-100 text-gray-700' },
   { value: 'pending', label: 'Pending', color: 'bg-orange-100 text-orange-700' },
-  { value: 'processing', label: 'Processing', color: 'bg-blue-100 text-blue-700' },
+  { value: 'confirmed', label: 'Confirmed', color: 'bg-blue-100 text-blue-700' },
   { value: 'shipped', label: 'Shipped', color: 'bg-purple-100 text-purple-700' },
   { value: 'delivered', label: 'Delivered', color: 'bg-green-100 text-green-700' },
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-700' },
@@ -383,7 +384,7 @@ export default function AdminOrdersPage() {
 
       {/* ── Orders Table ── */}
       <div className="bg-[var(--bg-card)] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[var(--border)] overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto mobile-card-table bg-[var(--bg)] md:bg-transparent">
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
@@ -417,31 +418,31 @@ export default function AdminOrdersPage() {
                   const isUpdating = updatingId === order.id;
                   return (
                     <tr key={order.id} className="hover:bg-[var(--bg)]/60 transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-2">
+                      <td className="px-6 py-5" data-label="Order ID">
+                        <div className="flex items-center justify-end md:justify-start gap-2">
                           <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{order.orderId}</span>
                           <button 
                             onClick={() => copyToClipboard(order.orderId)}
-                            className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all opacity-0 group-hover:opacity-100"
+                            className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all md:opacity-0 md:group-hover:opacity-100"
                           >
                             <Copy size={12} />
                           </button>
                         </div>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col">
+                      <td className="px-6 py-5" data-label="Customer">
+                        <div className="flex flex-col text-right md:text-left">
                           <span className="text-sm font-bold text-[var(--text-primary)]">{order.customerName}</span>
                           <span className="text-[11px] text-[var(--text-muted)] font-medium">{order.customerEmail}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col">
+                      <td className="px-6 py-5" data-label="Date & Time">
+                        <div className="flex flex-col text-right md:text-left">
                           <span className="text-sm font-bold text-[var(--text-primary)]">{date}</span>
                           <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase">{time}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center -space-x-3 overflow-hidden">
+                      <td className="px-6 py-5" data-label="Items">
+                        <div className="flex items-center justify-end md:justify-start -space-x-3 overflow-hidden">
                           {order.items.slice(0, 3).map((item, idx) => (
                             <div key={idx} className="relative w-8 h-10 bg-gray-100 border-2 border-white rounded-sm overflow-hidden flex-shrink-0">
                               {(item as any).imageUrl ? (
@@ -458,17 +459,17 @@ export default function AdminOrdersPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col gap-1">
+                      <td className="px-6 py-5" data-label="Payment">
+                        <div className="flex flex-col gap-1 items-end md:items-start">
                           <span className={cn(
                             "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider w-fit",
-                            order.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                            ['paid'].includes(order.paymentStatus) ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                           )}>
                             {order.paymentStatus}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-5">
+                      <td className="px-6 py-5" data-label="Status">
                         <select 
                           value={order.status}
                           disabled={isUpdating}
@@ -478,18 +479,18 @@ export default function AdminOrdersPage() {
                             STATUS_OPTIONS.find(opt => opt.value === order.status)?.color || "bg-gray-100 text-gray-700"
                           )}
                         >
-                          {STATUS_OPTIONS.filter(o => o.value).map(opt => (
+                          {STATUS_OPTIONS.filter(o => o.value && getAvailableStatuses(order.status).includes(o.value as OrderStatus)).map(opt => (
                             <option key={opt.value} value={opt.value} className="text-[var(--text-primary)] bg-[var(--bg-card)]">{opt.label}</option>
                           ))}
                         </select>
                       </td>
-                      <td className="px-6 py-5 text-right">
+                      <td className="px-6 py-5 text-right" data-label="Total">
                         <span className="text-sm font-bold text-[var(--text-primary)]">₹{order.total.toLocaleString('en-IN')}</span>
                       </td>
-                      <td className="px-6 py-5 text-right">
+                      <td className="px-6 py-5 text-right" data-label="Action">
                         <Link 
                           href={`/admin/orders/${order.id}`}
-                          className="px-6 py-2.5 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-gray-800 transition-all opacity-0 group-hover:opacity-100 shadow-md"
+                          className="px-6 py-2.5 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-gray-800 transition-all md:opacity-0 md:group-hover:opacity-100 shadow-md w-full md:w-auto text-center block md:inline-block"
                         >
                           View Details
                         </Link>
