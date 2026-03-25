@@ -20,8 +20,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
 
 # Embedding model
-EMBEDDING_MODEL = "models/text-embedding-004"
-EMBEDDING_DIMENSION = 768
+EMBEDDING_MODEL = "models/gemini-embedding-001"
+EMBEDDING_DIMENSION = 3072
 
 # Chat model
-CHAT_MODEL = "gemini-2.0-flash"
+CHAT_MODEL = "gemini-2.5-flash"
