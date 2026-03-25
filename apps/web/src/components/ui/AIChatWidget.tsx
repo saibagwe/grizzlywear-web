@@ -12,19 +12,8 @@ interface ChatMessage {
   showEscalate?: boolean;
 }
 
-/* ───────────── keyword responses ───────────── */
-const responses: { keywords: string[]; reply: string; isDefault?: boolean; showEscalate?: boolean }[] = [
-  { keywords: ['size', 'sizing', 'fit', 'measurements', 'too small', 'too big'], reply: "Great question on sizing! 📏\n\n• **Regular Fit**: True to size — if between sizes, go up\n• **Oversized Fit**: Size down for relaxed, or stay true for extra roomy\n\nYou can check the full [Size Guide](/size-guide) or tell me which product you're looking at and I'll help!" },
-  { keywords: ['return', 'refund', 'exchange', 'send back'], reply: "Our return policy is simple 🔄\n\n• **7 days** from delivery to return\n• Items must be unworn with tags on\n• Free pickup from your address\n• Refund in 5–7 business days\n\nTo start a return, go to [My Orders](/account) and click 'Request Return'. Need more help?" },
-  { keywords: ['shipping', 'delivery', 'when will', 'how long', 'dispatch'], reply: "Shipping info 🚚\n\n• **Free shipping** on orders above ₹999\n• Standard delivery: 5–7 business days\n• Express delivery: 2–3 business days (₹99)\n• We ship across all of India via Shiprocket\n\nAlready ordered? Track it here → [Track My Order](/track)" },
-  { keywords: ['discount', 'offer', 'coupon', 'promo', 'code', 'sale'], reply: "Here's a secret 🤫 Use code **GRIZZ10** at checkout for 10% off your first order!\n\nWe also have free shipping on orders above ₹999. New drops happen every Friday — follow us [@grizzlywear.in](https://www.instagram.com/grizzlywear.in/) to stay updated!" },
-  { keywords: ['track', 'tracking', 'where is my order', 'order status'], reply: "To track your order:\n\n1. Go to [My Orders](/account) if you're logged in\n2. Or use our [Track Order](/track) page with your order ID + email\n\nYour tracking ID is in the shipping confirmation email we sent you. Need help finding it?" },
-  { keywords: ['payment', 'pay', 'upi', 'card', 'cod', 'cash'], reply: "We accept all major payment methods 💳\n\n• UPI (Google Pay, PhonePe, Paytm)\n• Debit & Credit Cards\n• Net Banking\n• Cash on Delivery\n\nAll payments are secured by Razorpay — your details are never stored on our servers." },
-  { keywords: ['material', 'fabric', 'cotton', 'quality', 'made of'], reply: "We take fabric seriously at Grizzlywear 🧵\n\nMost of our basics are made from **100% combed cotton** — softer, stronger, and more durable than regular cotton. Heavier pieces use a cotton-blend for structure.\n\nFull material details are on each product page. Which product were you curious about?" },
-  { keywords: ['hello', 'hi', 'hey', 'hii', 'helo', 'sup'], reply: "Hey! 👋 Great to meet you. I'm Grizz — Grizzlywear's AI shopping assistant.\n\nAsk me anything: sizing help, order tracking, returns, or just product recommendations. What's on your mind?" },
-  { keywords: ['recommend', 'suggestion', 'what should i buy', 'best seller', 'popular'], reply: "Our bestsellers right now 🔥\n\n• Oversized Signature Tee (Men's) — ₹999\n• Wide Leg Joggers (Women's) — ₹1,499\n• Grizz Heavy Hoodie — ₹1,999\n\nAll available in the [Shop](/shop). Want me to narrow it down by category or budget?" },
-  { keywords: [], isDefault: true, reply: "Hmm, I want to make sure I give you the right answer on that 🤔\n\nLet me connect you with our support team who can help better.", showEscalate: true },
-];
+/* ───────────── AI Service URL ───────────── */
+const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000';
 
 /* ───────────── markdown renderer ───────────── */
 function renderMarkdown(text: string): string {
@@ -127,20 +116,37 @@ export function GrizzChat() {
     if (messages.length > 0) saveHistory(messages);
   }, [messages]);
 
-  const getResponse = useCallback((text: string): { reply: string; showEscalate?: boolean } => {
-    const q = text.toLowerCase();
-    for (const r of responses) {
-      if (r.isDefault) continue;
-      if (r.keywords.some((kw) => q.includes(kw))) return { reply: r.reply, showEscalate: r.showEscalate };
+  /** Call the RAG-powered AI service */
+  const getAIResponse = useCallback(async (text: string): Promise<{ reply: string; shouldEscalate?: boolean }> => {
+    try {
+      const res = await fetch(`${AI_SERVICE_URL}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`AI service returned ${res.status}`);
+      }
+
+      const data = await res.json();
+      return {
+        reply: data.reply || "I couldn't process that. Please try again.",
+        shouldEscalate: data.shouldEscalate ?? false,
+      };
+    } catch (err) {
+      console.error('AI chat error:', err);
+      return {
+        reply: "I'm having trouble connecting right now 😅 Please try again in a moment or contact our support team.",
+        shouldEscalate: true,
+      };
     }
-    const defaultR = responses.find((r) => r.isDefault)!;
-    return { reply: defaultR.reply, showEscalate: defaultR.showEscalate };
   }, []);
 
   // Hide on admin pages (must be after all hooks)
   const isAdmin = pathname?.startsWith('/admin');
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     const userMsg: ChatMessage = { sender: 'user', text: input.trim() };
@@ -148,11 +154,9 @@ export function GrizzChat() {
     setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const { reply, showEscalate } = getResponse(userMsg.text);
-      setMessages((prev) => [...prev, { sender: 'grizz', text: reply, showEscalate }]);
-      setIsTyping(false);
-    }, 1200);
+    const { reply, shouldEscalate } = await getAIResponse(userMsg.text);
+    setMessages((prev) => [...prev, { sender: 'grizz', text: reply, showEscalate: shouldEscalate }]);
+    setIsTyping(false);
   };
 
   const clearChat = () => {
