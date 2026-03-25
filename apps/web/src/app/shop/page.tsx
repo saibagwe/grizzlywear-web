@@ -232,7 +232,7 @@ export default function ShopPage() {
                     <div key={product.id} className="product-card group relative block">
 
                       {/* Image Asset Wrapper */}
-                      <Link href={`/shop/${product.slug}`} className="block relative aspect-[3/4] bg-[#F5F5F5] mb-4 overflow-hidden">
+                      <Link href={`/shop/${product.slug}`} className={cn("block relative aspect-[3/4] bg-[#F5F5F5] mb-4 overflow-hidden", product.totalStock === 0 && "opacity-60")}>
                         {product.images[0] && (
                           <Image
                             src={product.images[0]}
@@ -254,6 +254,12 @@ export default function ShopPage() {
 
                         {/* Badges */}
                         <div className="absolute top-3 left-3 flex flex-col gap-1 z-10">
+                          {product.totalStock === 0 && (
+                            <span className="bg-red-600 text-white px-2 py-1 text-[9px] font-bold tracking-widest uppercase shadow-sm">Out of Stock</span>
+                          )}
+                          {product.totalStock > 0 && product.totalStock <= 10 && (
+                            <span className="bg-orange-500 text-white px-2 py-1 text-[9px] font-bold tracking-widest uppercase shadow-sm">Only {product.totalStock} Left!</span>
+                          )}
                           {product.isNew && (
                             <span className="bg-white px-2 py-1 text-[9px] font-bold tracking-widest uppercase shadow-sm">New</span>
                           )}
@@ -281,11 +287,11 @@ export default function ShopPage() {
                       <Link href={`/shop/${product.slug}`} className="block">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <h3 className="text-sm font-medium mb-1 group-hover:underline underline-offset-4 decoration-1">{product.name}</h3>
+                            <h3 className={cn("text-sm font-medium mb-1 group-hover:underline underline-offset-4 decoration-1", product.totalStock === 0 && "text-gray-400")}>{product.name}</h3>
                             <p className="text-xs text-gray-500 tracking-wider uppercase">{product.category}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium">₹{product.price.toLocaleString('en-IN')}</p>
+                            <p className={cn("text-sm font-medium", product.totalStock === 0 && "text-gray-400")}>₹{product.price.toLocaleString('en-IN')}</p>
                             {product.comparePrice && (
                               <p className="text-xs text-gray-400 line-through">₹{product.comparePrice.toLocaleString('en-IN')}</p>
                             )}

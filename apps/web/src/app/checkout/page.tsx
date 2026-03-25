@@ -9,16 +9,17 @@ import { CreditCard, MapPin, CheckCircle2, Loader2, AlertTriangle } from 'lucide
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/store/cartStore';
 import { useCheckoutStore } from '@/store/checkoutStore';
-import { MOCK_ADDRESSES } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   createRazorpayOrder,
   openRazorpayCheckout,
   saveOrderToFirestore,
+  validateStockBeforePayment,
   type OrderPayload,
   type DeliveryAddress,
 } from '@/lib/payment/razorpayService';
+import { getAddresses, addAddress, type FirestoreAddress } from '@/lib/firestore/userService';
 
 type CheckoutStep = 'address' | 'shipping' | 'payment';
 
@@ -33,8 +34,17 @@ export default function CheckoutPage() {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('address');
   
   // Step 1: Address
-  const [selectedAddressId, setSelectedAddressId] = useState(MOCK_ADDRESSES[0].id);
-  const selectedAddressData = MOCK_ADDRESSES.find(a => a.id === selectedAddressId) as DeliveryAddress;
+  const [addresses, setAddresses] = useState<FirestoreAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('new');
+  
+  const [newAddressForm, setNewAddressForm] = useState({
+    name: '', phone: '', line1: '', line2: '', city: '', state: '', pincode: ''
+  });
+
+  const selectedAddressData: DeliveryAddress = selectedAddressId === 'new' 
+    ? newAddressForm 
+    : (addresses.find(a => a.id === selectedAddressId) || newAddressForm);
 
   // Step 2: Shipping Method (UI only, shipping cost is locked from Cart snapshot)
   const [shippingMethod, setShippingMethod] = useState('standard');
@@ -47,7 +57,25 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (firebaseUser) {
+      getAddresses(firebaseUser.uid).then(adds => {
+        setAddresses(adds);
+        if (adds.length > 0) {
+          const def = adds.find(a => a.isDefault) || adds[0];
+          setSelectedAddressId(def.id);
+        } else {
+          setNewAddressForm(prev => ({
+            ...prev,
+            name: profile?.fullName || firebaseUser.displayName || '',
+            phone: profile?.phone || '',
+          }));
+        }
+        setLoadingAddresses(false);
+      });
+    } else {
+      setLoadingAddresses(false);
+    }
+  }, [firebaseUser, profile]);
 
   // Protect route if checkout snapshot is empty
   if (mounted && checkoutStore.cartSnapshot.length === 0) {
@@ -110,6 +138,15 @@ export default function CheckoutPage() {
     }
 
     setIsProcessing(true);
+
+    try {
+      await validateStockBeforePayment(checkoutStore.cartSnapshot);
+    } catch (err: any) {
+      toast.error(err.message);
+      setIsProcessing(false);
+      return;
+    }
+
     const payload = buildOrderPayload();
 
     if (paymentMethod === 'cod') {
@@ -250,41 +287,107 @@ export default function CheckoutPage() {
               {currentStep === 'address' && (
                 <div className="mt-8 animate-in fade-in slide-in-from-top-4 duration-300">
                   <div className="space-y-4">
-                    {MOCK_ADDRESSES.map(addr => (
-                      <label 
-                        key={addr.id} 
-                        className={cn("block border p-4 cursor-pointer transition-colors relative", selectedAddressId === addr.id ? "border-black bg-gray-50" : "border-gray-200 hover:border-black")}
-                      >
-                        <input 
-                          type="radio" 
-                          name="address" 
-                          value={addr.id} 
-                          checked={selectedAddressId === addr.id}
-                          onChange={(e) => setSelectedAddressId(e.target.value)}
-                          className="mr-3 accent-black absolute top-5 right-4"
-                        />
-                        <div className="flex items-center gap-2 mb-2 pr-8">
-                          <MapPin size={14} className="text-gray-400" />
-                          <span className="text-xs font-bold uppercase tracking-widest">{addr.label}</span>
-                        </div>
-                        <div className="text-sm text-gray-600 block w-full space-y-1">
-                          <p className="font-medium text-black">{addr.name}</p>
-                          <p>{addr.line1}</p>
-                          {addr.line2 && <p>{addr.line2}</p>}
-                          <p>{addr.city}, {addr.state} {addr.pincode}</p>
-                          <p className="pt-2 text-xs">Phone: {addr.phone}</p>
-                        </div>
-                      </label>
-                    ))}
-                    <button className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4 mt-2">
-                       (Adding new addresses is done in Account settings)
-                    </button>
+                    {loadingAddresses ? (
+                      <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" /></div>
+                    ) : (
+                      <>
+                        {addresses.map(addr => (
+                          <label 
+                            key={addr.id} 
+                            className={cn("block border p-4 cursor-pointer transition-colors relative", selectedAddressId === addr.id ? "border-black bg-gray-50" : "border-gray-200 hover:border-black")}
+                          >
+                            <input 
+                              type="radio" 
+                              name="address" 
+                              value={addr.id} 
+                              checked={selectedAddressId === addr.id}
+                              onChange={(e) => setSelectedAddressId(e.target.value)}
+                              className="mr-3 accent-black absolute top-5 right-4"
+                            />
+                            <div className="flex items-center gap-2 mb-2 pr-8">
+                              <MapPin size={14} className="text-gray-400" />
+                              <span className="text-xs font-bold uppercase tracking-widest">{addr.label || 'Saved Address'}</span>
+                            </div>
+                            <div className="text-sm text-gray-600 block w-full space-y-1">
+                              <p className="font-medium text-black">{addr.name}</p>
+                              <p>{addr.line1}</p>
+                              {addr.line2 && <p>{addr.line2}</p>}
+                              <p>{addr.city}, {addr.state} {addr.pincode}</p>
+                              <p className="pt-2 text-xs">Phone: {addr.phone}</p>
+                            </div>
+                          </label>
+                        ))}
+                        
+                        <label 
+                          className={cn("block border p-4 cursor-pointer transition-colors relative", selectedAddressId === 'new' ? "border-black bg-gray-50" : "border-gray-200 hover:border-black")}
+                        >
+                          <input 
+                            type="radio" 
+                            name="address" 
+                            value="new" 
+                            checked={selectedAddressId === 'new'}
+                            onChange={() => setSelectedAddressId('new')}
+                            className="mr-3 accent-black absolute top-5 right-4"
+                          />
+                          <div className="flex items-center gap-2 mb-2 pr-8">
+                            <MapPin size={14} className="text-gray-400" />
+                            <span className="text-xs font-bold uppercase tracking-widest">Add New Address</span>
+                          </div>
+                          
+                          {selectedAddressId === 'new' && (
+                            <div className="mt-4 space-y-4 cursor-default" onClick={(e) => e.stopPropagation()}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <input placeholder="Full Name *" value={newAddressForm.name} onChange={e => setNewAddressForm(p => ({...p, name: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full" />
+                                <input placeholder="Phone Number *" value={newAddressForm.phone} onChange={e => setNewAddressForm(p => ({...p, phone: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full" />
+                              </div>
+                              <input placeholder="Address Line 1 *" value={newAddressForm.line1} onChange={e => setNewAddressForm(p => ({...p, line1: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full" />
+                              <input placeholder="Address Line 2 (Optional)" value={newAddressForm.line2} onChange={e => setNewAddressForm(p => ({...p, line2: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full" />
+                              <div className="grid grid-cols-3 gap-4">
+                                <input placeholder="City *" value={newAddressForm.city} onChange={e => setNewAddressForm(p => ({...p, city: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full col-span-1" />
+                                <input placeholder="State *" value={newAddressForm.state} onChange={e => setNewAddressForm(p => ({...p, state: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full col-span-1" />
+                                <input placeholder="Pincode *" value={newAddressForm.pincode} onChange={e => setNewAddressForm(p => ({...p, pincode: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full col-span-1" />
+                              </div>
+                            </div>
+                          )}
+                        </label>
+                      </>
+                    )}
                   </div>
                   <button 
-                    onClick={() => setCurrentStep('shipping')}
-                    className="mt-8 w-full bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
+                    onClick={async () => {
+                      if (selectedAddressId === 'new') {
+                        if (!newAddressForm.name || !newAddressForm.phone || !newAddressForm.line1 || !newAddressForm.city || !newAddressForm.state || !newAddressForm.pincode) {
+                          toast.error('Please fill all required address fields.');
+                          return;
+                        }
+                        if (firebaseUser) {
+                          setIsProcessing(true);
+                          try {
+                            const newId = await addAddress(firebaseUser.uid, {
+                              ...newAddressForm,
+                              label: 'Home',
+                              isDefault: addresses.length === 0,
+                            });
+                            const newAddr: FirestoreAddress = { id: newId, ...newAddressForm, label: 'Home', isDefault: addresses.length === 0 };
+                            setAddresses([...addresses, newAddr]);
+                            setSelectedAddressId(newId);
+                            setCurrentStep('shipping');
+                          } catch (err) {
+                            toast.error('Failed to save your new address.');
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        } else {
+                          setCurrentStep('shipping');
+                        }
+                      } else {
+                        setCurrentStep('shipping');
+                      }
+                    }}
+                    disabled={isProcessing}
+                    className="mt-8 w-full bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors disabled:opacity-50"
                   >
-                    Continue to Shipping
+                    {isProcessing ? 'Saving...' : 'Continue to Shipping'}
                   </button>
                 </div>
               )}

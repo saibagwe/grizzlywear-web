@@ -75,9 +75,9 @@ export type OrderInput = Omit<FirestoreOrder, 'id' | 'createdAt' | 'updatedAt'>;
 export function getAvailableStatuses(currentStatus: OrderStatus): OrderStatus[] {
   switch (currentStatus) {
     case 'pending':
-      return ['pending', 'confirmed'];
+      return ['pending', 'confirmed', 'cancelled'];
     case 'confirmed':
-      return ['confirmed', 'shipped'];
+      return ['confirmed', 'shipped', 'cancelled'];
     case 'shipped':
       return ['shipped', 'delivered'];
     case 'delivered':
@@ -296,6 +296,76 @@ export function subscribeToMoreOrders(
     },
     (err) => {
       console.error('[subscribeToMoreOrders] Firestore error:', err.code, err.message);
+      onError?.(err);
+    }
+  );
+}
+
+export function subscribeToFilteredOrders(
+  filters: { startDate?: Date; endDate?: Date },
+  callback: (orders: FirestoreOrder[], lastDoc: QueryDocumentSnapshot | null) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  let qConstraints: any[] = [];
+  
+  if (filters.startDate) {
+    qConstraints.push(where('createdAt', '>=', filters.startDate));
+  }
+  if (filters.endDate) {
+    qConstraints.push(where('createdAt', '<=', filters.endDate));
+  }
+  
+  qConstraints.push(orderBy('createdAt', 'desc'));
+  qConstraints.push(limit(ORDERS_PAGE_SIZE));
+
+  const q = query(collection(db, 'orders'), ...qConstraints);
+  return onSnapshot(
+    q,
+    (snap) => {
+      const last = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+      callback(
+        snap.docs.map((d) => docToOrder(d.id, d.data())),
+        last as QueryDocumentSnapshot | null
+      );
+    },
+    (err) => {
+      console.error('[subscribeToFilteredOrders] Firestore error:', err.code, err.message);
+      onError?.(err);
+    }
+  );
+}
+
+export function subscribeToMoreFilteredOrders(
+  filters: { startDate?: Date; endDate?: Date },
+  cursor: QueryDocumentSnapshot,
+  callback: (orders: FirestoreOrder[], lastDoc: QueryDocumentSnapshot | null) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  let qConstraints: any[] = [];
+  
+  if (filters.startDate) {
+    qConstraints.push(where('createdAt', '>=', filters.startDate));
+  }
+  if (filters.endDate) {
+    qConstraints.push(where('createdAt', '<=', filters.endDate));
+  }
+  
+  qConstraints.push(orderBy('createdAt', 'desc'));
+  qConstraints.push(startAfter(cursor));
+  qConstraints.push(limit(ORDERS_PAGE_SIZE));
+
+  const q = query(collection(db, 'orders'), ...qConstraints);
+  return onSnapshot(
+    q,
+    (snap) => {
+      const last = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+      callback(
+        snap.docs.map((d) => docToOrder(d.id, d.data())),
+        last as QueryDocumentSnapshot | null
+      );
+    },
+    (err) => {
+      console.error('[subscribeToMoreFilteredOrders] Firestore error:', err.code, err.message);
       onError?.(err);
     }
   );

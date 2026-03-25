@@ -22,7 +22,7 @@
  */
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, runTransaction, doc, getDoc } from 'firebase/firestore';
 
 const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!;
 const ORDER_API_URL = process.env.NEXT_PUBLIC_ORDER_API_URL!;
@@ -56,6 +56,31 @@ export type OrderPayload = {
   total: number;
   discountCode?: string;
 };
+
+/**
+ * Validates stock of all items in the payload before payment to avoid payment issues.
+ * Throws an error if any item is out of stock.
+ */
+export async function validateStockBeforePayment(cartItems: CartItem[]) {
+  for (const item of cartItems) {
+    const pDoc = await getDoc(doc(db, 'products', item.productId));
+    if (!pDoc.exists()) {
+      throw new Error(`Product not found: ${item.name}`);
+    }
+    const pData = pDoc.data();
+    let currentStock = 0;
+    
+    if (typeof pData.stock === 'object' && pData.stock !== null) {
+      currentStock = pData.stock[item.size] || 0;
+    } else {
+      currentStock = Number(pData.stock || 0);
+    }
+    
+    if (currentStock < item.quantity) {
+      throw new Error(`Insufficient stock for ${item.name}${item.size ? ` (Size: ${item.size})` : ''}. Available: ${currentStock}`);
+    }
+  }
+}
 
 /**
  * Step 1: Call the Render server to create a Razorpay order.
@@ -208,9 +233,58 @@ export async function saveOrderToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  // Write directly to /orders collection — authenticated user, userId field present.
-  // Firestore rules allow: create if request.auth != null
-  await addDoc(collection(db, 'orders'), orderData);
+  // Run a transaction to safely decrement stock and save the order
+  await runTransaction(db, async (transaction) => {
+    const productUpdates = [];
+    
+    // 1. Read all product docs
+    for (const item of payload.cartItems) {
+      const pRef = doc(db, 'products', item.productId);
+      const pDoc = await transaction.get(pRef);
+      if (!pDoc.exists()) {
+        throw new Error(`Product not found: ${item.name}`);
+      }
+      productUpdates.push({ ref: pRef, item, pDoc });
+    }
+    
+    // 2. Compute stock changes and validate
+    for (const { ref, item, pDoc } of productUpdates) {
+      const pData = pDoc.data();
+      let newStockData = typeof pData.stock === 'object' && pData.stock !== null ? { ...pData.stock } : Number(pData.stock || 0);
+
+      if (typeof pData.stock === 'object' && pData.stock !== null) {
+        const currentStock = pData.stock[item.size] || 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.name}${item.size ? ` (Size: ${item.size})` : ''}. Available: ${currentStock}`);
+        }
+        newStockData[item.size] = currentStock - item.quantity;
+      } else {
+        const currentStock = Number(pData.stock || 0);
+        if (currentStock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}`);
+        }
+        newStockData = currentStock - item.quantity;
+      }
+
+      let totalStock = 0;
+      if (typeof newStockData === 'number') {
+        totalStock = newStockData;
+      } else {
+        totalStock = Object.values(newStockData).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+      }
+
+      transaction.update(ref, {
+        stock: newStockData,
+        totalStock: Math.max(0, totalStock),
+        inStock: totalStock > 0,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    
+    // 3. Create the order document
+    const orderRef = doc(collection(db, 'orders'));
+    transaction.set(orderRef, orderData);
+  });
 
   return orderId;
 }

@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import {
   getOrderById,
   updateOrderStatus,
+  cancelOrder,
   getAvailableStatuses,
   type FirestoreOrder,
   type OrderStatus,
@@ -63,6 +64,7 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('pending');
 
   useEffect(() => {
@@ -90,6 +92,27 @@ export default function AdminOrderDetailPage() {
       toast.error('Failed to update order status.');
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+    if (!confirm('Are you sure you want to cancel this order? This cannot be undone.')) return;
+    
+    setIsCancelling(true);
+    try {
+      await cancelOrder(order.id);
+      
+      const isOnline = order.paymentMethod === 'online' || order.paymentMethod === 'razorpay' || order.paymentMethod === 'card' || order.paymentMethod === 'upi';
+      const isPaid = order.paymentStatus === 'paid' || (order.paymentStatus as string) === 'paid_online';
+      const newPaymentStatus = isOnline ? (isPaid ? 'refunded' : 'cancelled') : 'cancelled';
+
+      setOrder({ ...order, status: 'cancelled', paymentStatus: newPaymentStatus as typeof order.paymentStatus });
+      toast.success('Order cancelled successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel order');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -240,6 +263,20 @@ export default function AdminOrderDetailPage() {
               {updatingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               {updatingStatus ? 'Updating...' : 'Update Status'}
             </button>
+            
+            {/* Cancel Button */}
+            {['pending', 'confirmed'].includes(order.status) && (
+              <div className="pt-4 border-t border-[var(--border)] mt-4">
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={isCancelling}
+                  className="w-full flex justify-center items-center gap-2 border border-red-500 text-red-600 px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-colors disabled:opacity-40"
+                >
+                  {isCancelling ? <Loader2 size={12} className="animate-spin" /> : null}
+                  {isCancelling ? 'Cancelling...' : 'Cancel Order'}
+                </button>
+              </div>
+            )}
           </div>
 
 

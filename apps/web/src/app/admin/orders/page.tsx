@@ -25,6 +25,8 @@ import Image from 'next/image';
 import {
   subscribeToAllOrders,
   subscribeToMoreOrders,
+  subscribeToFilteredOrders,
+  subscribeToMoreFilteredOrders,
   updateOrderStatus,
   getAvailableStatuses,
   ORDERS_PAGE_SIZE,
@@ -46,9 +48,9 @@ const STATUS_OPTIONS: { value: '' | OrderStatus; label: string; color: string }[
 const QUICK_FILTERS = [
   { label: 'Today', days: 0 },
   { label: 'Yesterday', days: 1 },
-  { label: 'Last 7 Days', days: 7 },
-  { label: 'Last 30 Days', days: 30 },
+  { label: 'This Week', type: 'week' as const },
   { label: 'This Month', type: 'month' as const },
+  { label: 'All', type: 'all' as const },
 ];
 
 // ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────────
@@ -121,9 +123,24 @@ export default function AdminOrdersPage() {
 
   // Initial Subscription
   useEffect(() => {
-    const unsub = subscribeToAllOrders(
+    setLoading(true);
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (fromDate) {
+      startDate = new Date(fromDate);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    if (toDate) {
+      endDate = new Date(toDate);
+      endDate.setHours(23, 59, 59, 999);
+    }
+    
+    const unsub = subscribeToFilteredOrders(
+      { startDate, endDate },
       (data, last) => {
         setOrders(data);
+        setMoreOrders([]);
         setLastDoc(last);
         setHasMore(data.length === ORDERS_PAGE_SIZE);
         setLoading(false);
@@ -134,18 +151,36 @@ export default function AdminOrdersPage() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [fromDate, toDate]);
 
   const handleLoadMore = () => {
     if (!lastDoc || loadingMore) return;
     setLoadingMore(true);
+    
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (fromDate) {
+      startDate = new Date(fromDate);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    if (toDate) {
+      endDate = new Date(toDate);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     if (moreUnsubRef.current) moreUnsubRef.current();
-    moreUnsubRef.current = subscribeToMoreOrders(lastDoc, (data, last) => {
-      setMoreOrders(prev => [...prev, ...data]);
-      setLastDoc(last);
-      setHasMore(data.length === ORDERS_PAGE_SIZE);
-      setLoadingMore(false);
-    }, () => setLoadingMore(false));
+    moreUnsubRef.current = subscribeToMoreFilteredOrders(
+      { startDate, endDate },
+      lastDoc, 
+      (data, last) => {
+        setMoreOrders(prev => [...prev, ...data]);
+        setLastDoc(last);
+        setHasMore(data.length === ORDERS_PAGE_SIZE);
+        setLoadingMore(false);
+      }, 
+      () => setLoadingMore(false)
+    );
   };
 
   const allOrders = useMemo(() => {
@@ -170,7 +205,7 @@ export default function AdminOrdersPage() {
       result = result.filter(o => o.status === statusFilter);
     }
 
-    // Dates
+    // Dates (handled natively by firestore query but keeping this guard just in case)
     if (fromDate || toDate) {
       result = result.filter(o => {
         const createdAt = (o as any).createdAt;
@@ -190,7 +225,7 @@ export default function AdminOrdersPage() {
 
   // Quick Filter Logic
   const handleQuickFilter = (filter: typeof QUICK_FILTERS[0]) => {
-    if (activeQuickFilter === filter.label) {
+    if (activeQuickFilter === filter.label && filter.type !== 'all') {
       setActiveQuickFilter(null);
       setFromDate('');
       setToDate('');
@@ -201,18 +236,41 @@ export default function AdminOrdersPage() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    if (filter.days === 0) {
-      setFromDate(today.toISOString().split('T')[0]);
-      setToDate(today.toISOString().split('T')[0]);
-    } else if (filter.days) {
-      const start = new Date(today);
-      start.setDate(today.getDate() - filter.days);
-      setFromDate(start.toISOString().split('T')[0]);
-      setToDate(today.toISOString().split('T')[0]);
+    const toDateString = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    if (filter.type === 'all') {
+      setFromDate('');
+      setToDate('');
+    } else if (filter.days === 0) {
+      setFromDate(toDateString(today));
+      setToDate(toDateString(today));
+    } else if (filter.days === 1) { // yesterday
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      setFromDate(toDateString(yesterday));
+      setToDate(toDateString(yesterday));
+    } else if (filter.type === 'week') {
+      // Monday to Sunday of the current week
+      const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday
+      const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() + distanceToMonday);
+      
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      
+      setFromDate(toDateString(startOfWeek));
+      setToDate(toDateString(endOfWeek));
     } else if (filter.type === 'month') {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      setFromDate(start.toISOString().split('T')[0]);
-      setToDate(today.toISOString().split('T')[0]);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setFromDate(toDateString(start));
+      setToDate(toDateString(end));
     }
   };
 
