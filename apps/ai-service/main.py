@@ -25,6 +25,7 @@ app.add_middleware(
         BACKEND_URL,
         "http://localhost:3000",
         "http://localhost:5000",
+        "https://grizzlywear-web-web.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
