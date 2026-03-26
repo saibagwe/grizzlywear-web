@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { 
   Star, 
   CheckCircle, 
   XCircle, 
   Trash2, 
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  X,
+  BadgeCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -29,9 +33,11 @@ function formatDate(ts: any): string {
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<FirestoreReview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [ratingFilter, setRatingFilter] = useState<number | 'all'>('all');
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [viewReview, setViewReview] = useState<FirestoreReview | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToAllReviews(
@@ -50,9 +56,15 @@ export default function AdminReviewsPage() {
   const pendingCount = useMemo(() => reviews.filter(r => r.status === 'pending').length, [reviews]);
 
   const filteredReviews = useMemo(() => {
-    if (filter === 'all') return reviews;
-    return reviews.filter(r => r.status === filter);
-  }, [reviews, filter]);
+    let result = reviews;
+    if (statusFilter !== 'all') {
+      result = result.filter(r => r.status === statusFilter);
+    }
+    if (ratingFilter !== 'all') {
+      result = result.filter(r => r.rating === ratingFilter);
+    }
+    return result;
+  }, [reviews, statusFilter, ratingFilter]);
 
   // Handlers
   const handleApprove = async (id: string) => {
@@ -73,11 +85,12 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, images?: string[]) => {
     try {
-      await deleteReviewData(id);
+      await deleteReviewData(id, images || []);
       toast.success('Review deleted successfully');
       setDeleteConfirmId(null);
+      if (viewReview && viewReview.id === id) setViewReview(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete review');
     }
@@ -91,6 +104,20 @@ export default function AdminReviewsPage() {
           <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Reviews directory</h1>
           <span className="bg-[var(--bg-card)] border border-[var(--border)] px-3 py-1 rounded-full text-[10px] font-bold text-[var(--text-muted)] shadow-sm">{reviews.length} Total</span>
         </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={ratingFilter}
+            onChange={(e) => setRatingFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition"
+          >
+            <option value="all">All Ratings</option>
+            <option value={5}>5★</option>
+            <option value={4}>4★</option>
+            <option value={3}>3★</option>
+            <option value={2}>2★</option>
+            <option value={1}>1★</option>
+          </select>
+        </div>
       </div>
 
       {/* ── Tabs ── */}
@@ -98,10 +125,10 @@ export default function AdminReviewsPage() {
         {(['all', 'pending', 'approved', 'rejected'] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setFilter(tab)}
+            onClick={() => setStatusFilter(tab)}
             className={cn(
               "px-4 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2",
-              filter === tab 
+              statusFilter === tab 
                 ? "border-black text-black dark:border-white dark:text-white" 
                 : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             )}
@@ -149,8 +176,11 @@ export default function AdminReviewsPage() {
                   <tr key={review.id} className="hover:bg-[var(--bg)]/60 transition-colors">
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-[var(--text-primary)]">{review.productName}</span>
-                        <span className="text-xs text-[var(--text-muted)]">{review.customerName}</span>
+                        <span className="text-sm font-bold text-[var(--text-primary)]">{review.productName || 'Product'}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs text-[var(--text-muted)]">{review.userName || review.customerName}</span>
+                          {review.verified && <span title="Verified Purchase"><BadgeCheck size={12} className="text-blue-500" /></span>}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-5">
@@ -180,9 +210,16 @@ export default function AdminReviewsPage() {
                       <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{formatDate(review.createdAt)}</span>
                     </td>
                     <td className="px-6 py-5 text-right space-x-2">
+                       <button 
+                         onClick={() => setViewReview(review)}
+                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-block"
+                         title="View Details"
+                       >
+                         <Eye size={18} />
+                       </button>
                        {review.status !== 'approved' && (
                          <button 
-                           onClick={() => handleApprove(review.id)}
+                           onClick={() => handleApprove(review.id as string)}
                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-block"
                            title="Approve"
                          >
@@ -191,7 +228,7 @@ export default function AdminReviewsPage() {
                        )}
                        {review.status !== 'rejected' && (
                          <button 
-                           onClick={() => handleReject(review.id)}
+                           onClick={() => handleReject(review.id as string)}
                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-block"
                            title="Reject"
                          >
@@ -199,7 +236,7 @@ export default function AdminReviewsPage() {
                          </button>
                        )}
                        <button 
-                         onClick={() => setDeleteConfirmId(review.id)}
+                         onClick={() => setDeleteConfirmId(review.id as string)}
                          className="p-2 text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-block"
                          title="Delete"
                        >
@@ -218,6 +255,66 @@ export default function AdminReviewsPage() {
             </span>
         </div>
       </div>
+
+      {/* Review Detail Modal */}
+      {viewReview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewReview(null)} />
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden rounded-xl shadow-2xl relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[var(--border)] flex justify-between items-center sticky top-0 bg-[var(--bg-card)] z-20">
+              <h3 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">Review Details</h3>
+              <button onClick={() => setViewReview(null)} className="p-2 hover:bg-[var(--bg)] rounded-full transition-colors"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-6">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-1">Product</p>
+                  <p className="font-medium text-[var(--text-primary)]">{viewReview.productName}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-1">Customer</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium text-[var(--text-primary)]">{viewReview.userName || viewReview.customerName}</p>
+                    {viewReview.verified && <span title="Verified Purchase"><BadgeCheck size={14} className="text-blue-500" /></span>}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-1">Status</p>
+                  <span className="inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full bg-gray-100 text-gray-800">{viewReview.status}</span>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-1">Date</p>
+                  <p className="font-medium text-[var(--text-primary)]">{formatDate(viewReview.createdAt)}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-[var(--border)] pt-6">
+                <div className="flex text-yellow-500 mb-4">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star key={s} size={20} className={s <= viewReview.rating ? "fill-current" : "text-gray-200 fill-current"} />
+                  ))}
+                </div>
+                <h4 className="text-lg font-bold text-[var(--text-primary)] mb-2">{viewReview.title}</h4>
+                <p className="text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{viewReview.comment}</p>
+              </div>
+
+              {viewReview.images && viewReview.images.length > 0 && (
+                <div className="border-t border-[var(--border)] pt-6">
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mb-3">Attached Images</p>
+                  <div className="flex gap-4 overflow-x-auto pb-2">
+                    {viewReview.images.map((img, i) => (
+                      <div key={i} className="relative w-32 h-32 flex-shrink-0 border border-[var(--border)] overflow-hidden rounded-lg">
+                        <Image src={img} alt={`Review Image ${i+1}`} fill className="object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -241,7 +338,7 @@ export default function AdminReviewsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(deleteConfirmId)}
+                onClick={() => handleDelete(deleteConfirmId, reviews.find(r => r.id === deleteConfirmId)?.images)}
                 className="px-4 py-2 text-sm font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm transition-colors uppercase tracking-widest"
               >
                 Delete

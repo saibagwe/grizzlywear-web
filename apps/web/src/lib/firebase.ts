@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 
 const firebaseConfig = {
@@ -23,6 +24,7 @@ if (!getApps().length) {
 
 export const auth: Auth = getAuth(firebaseApp);
 export const db: Firestore = getFirestore(firebaseApp);
+export const storage: FirebaseStorage = getStorage(firebaseApp);
 
 // Enable offline persistence (IndexedDB cache) — client-side only.
 // Subsequent page visits load from local cache instantly, then sync from server.

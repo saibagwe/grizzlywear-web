@@ -123,12 +123,28 @@ service cloud.firestore {
       );
     }
 
+    // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────
+    // Any authenticated user can create a notification (fired from client on actions).
+    // Only admins can read and update (mark as read).
+    match /notifications/{notifId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+
     // ─── REVIEWS COLLECTION ────────────────────────────────────────────────────
     match /reviews/{reviewId} {
-      allow create: if request.auth != null;
-      allow read: if true;
-      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-      allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+      // Anyone can read approved reviews. Admins and the review author can read any status.
+      allow read: if resource.data.status == "approved" || isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+
+      // Only logged in users can create a review for themselves
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+
+      // User can only update their own review if still pending. Admins can update any review.
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId && resource.data.status == "pending");
+
+      // Only admins and the author can delete
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
     }
 
     // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────

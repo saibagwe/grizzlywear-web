@@ -29,6 +29,7 @@ import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
 
 import {
   subscribeToNotifications,
+  subscribeToUnreadCount,
   markNotificationRead,
   markAllNotificationsRead,
   type AdminNotification,
@@ -62,8 +63,8 @@ export default function AdminLayout({
   // Notification bell state
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Initial Responsive State
   useEffect(() => {
@@ -117,16 +118,29 @@ export default function AdminLayout({
     return () => unsub();
   }, []);
 
-
-
-  // Real-time notifications
+  // Real-time notifications UNREAD COUNT (always active)
   useEffect(() => {
+    const unsub = subscribeToUnreadCount(
+      (count) => setUnreadCount(count),
+      () => { /* silently ignore */ }
+    );
+    return () => unsub();
+  }, []);
+
+  // Real-time notifications (ONLY WHEN PANEL IS OPEN)
+  useEffect(() => {
+    if (!showNotifPanel) {
+      // Free memory when closed, wait... prompt says:
+      // "When the dropdown opens, fetch and display all notifications sorted by createdAt descending (newest first)"
+      // So fetching when open via onSnapshot is perfect.
+      return;
+    }
     const unsub = subscribeToNotifications(
       (data) => setNotifications(data),
       () => { /* silently ignore */ }
     );
     return () => unsub();
-  }, []);
+  }, [showNotifPanel]);
 
   // Close notification panel on outside click
   useEffect(() => {

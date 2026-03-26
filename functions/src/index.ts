@@ -298,3 +298,59 @@ export const onOrderCancelled = functions.firestore
 
     return null;
   });
+
+/**
+ * Cloud Function: onReviewWritten
+ * 
+ * Triggered when a review is created, updated, or deleted.
+ * Recalculates average rating and review count for the modified product.
+ */
+export const onReviewWritten = functions.firestore
+  .document('reviews/{reviewId}')
+  .onWrite(async (change, context) => {
+    const data = change.after.exists ? change.after.data() : change.before.data();
+    if (!data || !data.productId) return null;
+
+    const productId = data.productId;
+
+    try {
+      // Fetch all approved reviews for this product
+      const reviewsRef = db.collection('reviews');
+      const snapshot = await reviewsRef
+        .where('productId', '==', productId)
+        .where('status', '==', 'approved')
+        .get();
+      
+      let totalRating = 0;
+      let reviewCount = 0;
+
+      snapshot.forEach(doc => {
+        const review = doc.data();
+        if (typeof review.rating === 'number') {
+          totalRating += review.rating;
+          reviewCount++;
+        }
+      });
+
+      const averageRating = reviewCount > 0 ? Number((totalRating / reviewCount).toFixed(1)) : 0;
+
+      // Update product document
+      const productRef = db.collection('products').doc(productId);
+      
+      // We check if product exists first, it might have been deleted, though rare
+      const productSnap = await productRef.get();
+      if (productSnap.exists) {
+        await productRef.update({
+          averageRating: averageRating,
+          reviewCount: reviewCount,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        functions.logger.info(`[onReviewWritten] Updated product ${productId}: avgRating ${averageRating}, count ${reviewCount}`);
+      } else {
+        functions.logger.warn(`[onReviewWritten] Product ${productId} not found. Cannot update ratings.`);
+      }
+    } catch (err) {
+      functions.logger.error(`[onReviewWritten] Failed to update product ${productId} rating:`, err);
+    }
+    return null;
+  });

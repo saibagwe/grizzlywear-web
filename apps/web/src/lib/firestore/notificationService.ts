@@ -67,7 +67,7 @@ export async function createNotification(data: {
   return ref.id;
 }
 
-// ─── SUBSCRIBE TO NOTIFICATIONS (latest 50, realtime) ─────────────────────────
+// ─── SUBSCRIBE TO NOTIFICATIONS (realtime, all) ─────────────────────────
 
 export function subscribeToNotifications(
   callback: (notifications: AdminNotification[]) => void,
@@ -75,8 +75,7 @@ export function subscribeToNotifications(
 ): Unsubscribe {
   const q = query(
     collection(db, 'notifications'),
-    orderBy('createdAt', 'desc'),
-    limit(50)
+    orderBy('createdAt', 'desc')
   );
   return onSnapshot(
     q,
@@ -85,6 +84,28 @@ export function subscribeToNotifications(
     },
     (err) => {
       console.error('[subscribeToNotifications] Firestore error:', err);
+      onError?.(err);
+    }
+  );
+}
+
+// ─── SUBSCRIBE TO UNREAD COUNT ────────────────────────────────────────────────
+
+export function subscribeToUnreadCount(
+  callback: (count: number) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const q = query(
+    collection(db, 'notifications'),
+    where('read', '==', false)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.size);
+    },
+    (err) => {
+      console.error('[subscribeToUnreadCount] Firestore error:', err);
       onError?.(err);
     }
   );

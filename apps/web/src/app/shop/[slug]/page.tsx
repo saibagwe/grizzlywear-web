@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2 } from 'lucide-react';
+import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { subscribeToProducts, getProductBySlug, type FirestoreProduct } from '@/lib/firestore/productService';
@@ -199,6 +199,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
         productId: product.id,
         productName: product.name,
         userId: user.uid,
+        userName: user.displayName || 'Customer',
         customerName: user.displayName || 'Customer',
         customerEmail: user.email || '',
         rating: reviewRating,
@@ -485,20 +486,38 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
 
       {/* REVIEWS SECTION */}
       <div id="reviews" className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-gray-100 mt-12">
-        <div className="flex flex-col md:flex-row items-start justify-between mb-12 gap-6">
-          <div>
-            <h2 className="text-3xl font-light tracking-tight mb-2">Customer Reviews</h2>
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col lg:flex-row items-start justify-between mb-12 gap-10">
+          <div className="flex-1 w-full lg:max-w-md">
+            <h2 className="text-3xl font-light tracking-tight mb-6">Customer Reviews</h2>
+            <div className="flex items-center gap-3 mb-6">
               <div className="flex text-yellow-500">
                 {[1, 2, 3, 4, 5].map(s => (
-                  <Star key={s} size={18} className={s <= Math.round(avgRating) ? "fill-current" : "text-gray-200 fill-current"} />
+                  <Star key={s} size={28} className={s <= Math.round(avgRating) ? "fill-current" : "text-gray-200 fill-current"} />
                 ))}
               </div>
-              <span className="text-lg font-medium">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'} out of 5</span>
-              <span className="text-sm text-gray-500">Based on {approvedReviews.length} reviews</span>
+              <span className="text-3xl font-light">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'} <span className="text-lg text-[var(--text-muted)]">out of 5</span></span>
+            </div>
+            <p className="text-sm text-[var(--text-secondary)] mb-8">Based on {approvedReviews.length} reviews</p>
+
+            {/* Rating Breakdown Bar */}
+            <div className="space-y-3">
+              {[5, 4, 3, 2, 1].map(star => {
+                const count = approvedReviews.filter(r => r.rating === star).length;
+                const percentage = approvedReviews.length > 0 ? Math.round((count / approvedReviews.length) * 100) : 0;
+                return (
+                  <div key={star} className="flex items-center gap-3 text-sm">
+                    <span className="w-8 font-medium text-[var(--text-secondary)]">{star} <Star size={12} className="inline fill-current -mt-0.5" /></span>
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${percentage}%` }} />
+                    </div>
+                    <span className="w-10 text-right text-[var(--text-muted)] text-xs">{percentage}%</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          
+          <div className="flex flex-col items-start lg:items-end gap-2 shrink-0">
             {initialized && user ? (
               <button
                 onClick={() => setShowReviewModal(true)}
@@ -518,23 +537,58 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           </div>
         ) : (
           <div className="space-y-8">
-            {approvedReviews.map((review) => {
+            {approvedReviews.slice(0, reviewPage * 5).map((review) => {
               const date = review.createdAt?.toDate ? review.createdAt.toDate() : new Date(review.createdAt);
               return (
                 <div key={review.id} className="border-b border-gray-100 pb-8 last:border-0 last:pb-0">
-                  <div className="flex text-yellow-500 mb-2">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <Star key={s} size={14} className={s <= review.rating ? "fill-current" : "text-gray-200 fill-current"} />
-                    ))}
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="flex text-yellow-500">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <Star key={s} size={14} className={s <= review.rating ? "fill-current" : "text-gray-200 fill-current"} />
+                      ))}
+                    </div>
+                    {/* User and verify badge */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <strong className="text-gray-900">{review.userName || review.customerName || 'Customer'}</strong>
+                      {review.verified && (
+                        <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-bold">
+                          <CheckCircle size={10} /> Verified Purchase
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <h4 className="font-bold text-lg mb-2">{review.title}</h4>
-                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">{review.comment}</p>
-                  <p className="text-xs text-gray-400 capitalize">
-                    By <strong className="text-gray-800">{review.customerName}</strong> on {date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+
+                  <h4 className="font-bold text-lg mb-2 text-black">{review.title}</h4>
+                  <p className="text-gray-600 text-sm mb-4 leading-relaxed whitespace-pre-wrap">{review.comment}</p>
+                  
+                  {/* Images */}
+                  {review.images && review.images.length > 0 && (
+                     <div className="flex gap-3 mb-4 overflow-x-auto pb-2">
+                       {review.images.map((img: string, i: number) => (
+                         <a key={i} href={img} target="_blank" rel="noreferrer" className="relative w-20 h-20 shrink-0 border border-gray-200 rounded-md overflow-hidden hover:opacity-80 transition-opacity">
+                           <Image src={img} alt="Review attachment" fill className="object-cover" />
+                         </a>
+                       ))}
+                     </div>
+                  )}
+
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                    {date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                 </div>
               );
             })}
+            
+            {reviewPage * 5 < approvedReviews.length && (
+              <div className="pt-6 flex justify-center">
+                <button 
+                  onClick={() => setReviewPage(prev => prev + 1)}
+                  className="border border-gray-300 px-6 py-3 text-xs uppercase tracking-widest font-bold hover:border-black transition-colors"
+                >
+                  Load More
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
