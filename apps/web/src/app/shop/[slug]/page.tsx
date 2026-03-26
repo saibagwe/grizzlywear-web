@@ -103,8 +103,17 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     return Number(product.stock || 0);
   }, [product, selectedSize]);
 
+  // Overall product stock for all sizes
+  const allSizesOOS = useMemo(() => {
+    if (!product) return false;
+    if (typeof product.stock === 'object' && product.stock !== null) {
+      return Object.values(product.stock as Record<string, number>).every(v => (v || 0) === 0);
+    }
+    return Number(product.stock || 0) === 0;
+  }, [product]);
+
   const isLowStock = currentStock > 0 && currentStock <= 10;
-  const isOutOfStock = currentStock === 0;
+  const isOutOfStock = selectedSize ? currentStock === 0 : allSizesOOS;
 
   // Ensure quantity does not exceed current stock when size changes
   useEffect(() => {
@@ -323,13 +332,14 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               )}
             </div>
             
-            {(isOutOfStock || isLowStock) && (
+            {allSizesOOS && (
               <div className="mb-6">
-                {isOutOfStock ? (
-                  <span className="inline-block bg-red-100 text-red-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Out of Stock</span>
-                ) : (
-                  <span className="inline-block bg-orange-100 text-orange-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Only {currentStock} Left!</span>
-                )}
+                <span className="inline-block bg-red-100 text-red-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Out of Stock</span>
+              </div>
+            )}
+            {selectedSize && isLowStock && !allSizesOOS && (
+              <div className="mb-6">
+                <span className="inline-block bg-orange-100 text-orange-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Only {currentStock} Left in {selectedSize}!</span>
               </div>
             )}
 
@@ -349,20 +359,40 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                   </button>
                 </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                  {product.sizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => { setSelectedSize(size); setSizeError(false); }}
-                      className={cn(
-                        "h-14 border text-xs font-bold tracking-widest transition-all",
-                        selectedSize === size
-                          ? "border-black bg-black text-white"
-                          : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
-                      )}
-                    >
-                      {size}
-                    </button>
-                  ))}
+                  {product.sizes.map((size) => {
+                    const sizeStock = typeof product.stock === 'object' && product.stock !== null
+                      ? (product.stock[size] || 0)
+                      : Number(product.stock || 0);
+                    const isSizeOOS = sizeStock === 0;
+                    const isSizeLow = sizeStock > 0 && sizeStock <= 10;
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => { if (!isSizeOOS) { setSelectedSize(size); setSizeError(false); } }}
+                        disabled={isSizeOOS}
+                        className={cn(
+                          "relative h-14 border text-xs font-bold tracking-widest transition-all",
+                          isSizeOOS
+                            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
+                            : selectedSize === size
+                              ? "border-black bg-black text-white"
+                              : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
+                        )}
+                      >
+                        {size}
+                        {isSizeOOS && (
+                          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[7px] font-bold uppercase px-1.5 py-0.5 rounded-sm leading-none tracking-wider">
+                            OOS
+                          </span>
+                        )}
+                        {isSizeLow && !isSizeOOS && (
+                          <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[7px] font-bold uppercase px-1.5 py-0.5 rounded-sm leading-none tracking-wider">
+                            {sizeStock} left
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
                 {sizeError && <p className="text-xs text-red-500 mt-3 font-medium flex items-center gap-1.5"><X size={14} /> Please select a size to continue.</p>}
               </div>

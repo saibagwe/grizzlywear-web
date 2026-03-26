@@ -4,6 +4,7 @@ import {
   type Unsubscribe, type QuerySnapshot, type DocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { createNotification } from '@/lib/firestore/notificationService';
 
 // ─── USER PROFILE ─────────────────────────────────────────────
 
@@ -85,6 +86,14 @@ export async function createUserProfile(uid: string, data: Partial<UserProfile>)
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+
+  // Fire admin notification (best-effort)
+  createNotification({
+    type: 'new_user',
+    message: `New user signed up: ${data.email || 'Unknown'}`,
+    linkTo: '/admin/customers',
+    userId: uid,
+  }).catch(() => { /* silently ignore */ });
 }
 
 /**
@@ -96,6 +105,14 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  // Fire admin notification (best-effort)
+  createNotification({
+    type: 'profile_updated',
+    message: `User ${data.fullName || 'Unknown'} updated their profile`,
+    linkTo: '/admin/customers',
+    userId: uid,
+  }).catch(() => { /* silently ignore */ });
 }
 
 // ─── ADDRESSES ────────────────────────────────────────────────

@@ -323,15 +323,12 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <button 
-                        onClick={() => handleToggleFeatured(product)}
-                        className={cn(
-                          "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border",
-                          product.inStock ? "bg-green-100 text-green-700 border-green-200" : "bg-red-100 text-red-700 border-red-200"
-                        )}
-                      >
+                      <span className={cn(
+                        "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border",
+                        product.inStock ? "bg-green-100 text-green-700 border-green-200" : "bg-red-100 text-red-700 border-red-200"
+                      )}>
                         {product.inStock ? 'ACTIVE' : 'OUT OF STOCK'}
-                      </button>
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

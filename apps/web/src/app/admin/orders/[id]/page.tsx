@@ -14,9 +14,14 @@ import {
   CreditCard,
   Loader2,
   RefreshCw,
+  Copy,
+  Shield,
+  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { doc, getDoc as firestoreGetDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   getOrderById,
   updateOrderStatus,
@@ -25,6 +30,7 @@ import {
   type FirestoreOrder,
   type OrderStatus,
 } from '@/lib/firestore/orderService';
+import { getAddresses, type FirestoreAddress } from '@/lib/firestore/userService';
 
 const ORDER_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 // Removed PAYMENT_STATUSES from here
@@ -66,6 +72,12 @@ export default function AdminOrderDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('pending');
+  const [rawPayment, setRawPayment] = useState<any>(null);
+  const [paymentDetails, setPaymentDetails] = useState<any>(null);
+
+  // Current profile address from users/{userId}/addresses
+  const [profileAddresses, setProfileAddresses] = useState<FirestoreAddress[]>([]);
+  const [loadingProfileAddr, setLoadingProfileAddr] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -76,8 +88,24 @@ export default function AdminOrderDetailPage() {
       } else {
         setOrder(data);
         setSelectedStatus(data.status);
+
+        // Fetch user's current profile addresses
+        if (data.userId) {
+          setLoadingProfileAddr(true);
+          getAddresses(data.userId)
+            .then((addrs) => setProfileAddresses(addrs))
+            .catch(() => setProfileAddresses([]))
+            .finally(() => setLoadingProfileAddr(false));
+        }
       }
       setLoading(false);
+    });
+    // also fetch raw payment data from Firestore doc
+    firestoreGetDoc(doc(db, 'orders', id)).then((snap) => {
+      if (snap.exists()) {
+        setRawPayment(snap.data()?.payment || null);
+        setPaymentDetails(snap.data()?.paymentDetails || null);
+      }
     });
   }, [id]);
 
@@ -86,7 +114,12 @@ export default function AdminOrderDetailPage() {
     setUpdatingStatus(true);
     try {
       await updateOrderStatus(order.id, selectedStatus);
-      setOrder((prev) => prev ? { ...prev, status: selectedStatus } : prev);
+      // Re-fetch to get the derived paymentStatus from Firestore
+      const refreshed = await getOrderById(order.id);
+      if (refreshed) {
+        setOrder(refreshed);
+        setSelectedStatus(refreshed.status);
+      }
       toast.success(`Order status updated to "${selectedStatus}".`);
     } catch {
       toast.error('Failed to update order status.');
@@ -116,7 +149,15 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  // Check if order has a real delivery address (not empty)
+  const hasDeliveryAddress = order && (
+    order.shippingAddress.name ||
+    order.shippingAddress.address ||
+    order.shippingAddress.city
+  );
 
+  // Default profile address
+  const defaultProfileAddr = profileAddresses.find(a => a.isDefault) || profileAddresses[0];
 
   if (loading) {
     return (
@@ -305,27 +346,73 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
 
-          {/* Shipping Address */}
+          {/* Delivery Address Used (from order document snapshot) */}
           <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-5">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">Shipping Address</h2>
-            <div className="flex items-start gap-3 text-sm">
-              <MapPin size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
-              <div className="text-[var(--text-secondary)] space-y-0.5">
-                <p className="font-medium text-[var(--text-primary)]">{order.shippingAddress.name}</p>
-                <p>{order.shippingAddress.address}</p>
-                <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p>
-                <p>{order.shippingAddress.country}</p>
-                {order.shippingAddress.phone && (
-                  <p className="pt-1 text-xs">Phone: {order.shippingAddress.phone}</p>
-                )}
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">
+              <span className="flex items-center gap-2">
+                <MapPin size={14} />
+                Delivery Address Used
+              </span>
+            </h2>
+            {hasDeliveryAddress ? (
+              <div className="flex items-start gap-3 text-sm">
+                <MapPin size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
+                <div className="text-[var(--text-secondary)] space-y-0.5">
+                  <p className="font-medium text-[var(--text-primary)]">{order.shippingAddress.name}</p>
+                  <p>{order.shippingAddress.address}</p>
+                  <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p>
+                  <p>{order.shippingAddress.country}</p>
+                  {order.shippingAddress.phone && (
+                    <p className="pt-1 text-xs">Phone: {order.shippingAddress.phone}</p>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-[var(--text-muted)] italic">No delivery address was saved with this order.</p>
+            )}
             <div className="flex items-start gap-3 pt-4 border-t border-gray-50">
               <Package size={16} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)]">Standard Delivery</p>
               </div>
             </div>
+          </div>
+
+          {/* Current Profile Address (from users/{userId}/addresses) */}
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-4">
+              <span className="flex items-center gap-2">
+                <User size={14} />
+                Current Profile Address
+              </span>
+            </h2>
+            {loadingProfileAddr ? (
+              <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                <Loader2 size={14} className="animate-spin" /> Loading...
+              </div>
+            ) : profileAddresses.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)] italic">No address saved in user profile.</p>
+            ) : (
+              <div className="space-y-4">
+                {profileAddresses.map((addr) => (
+                  <div key={addr.id} className={cn(
+                    'p-3 border rounded-lg text-sm',
+                    addr.isDefault ? 'border-black bg-[var(--bg)]' : 'border-[var(--border)]'
+                  )}>
+                    {addr.isDefault && (
+                      <span className="text-[8px] font-bold uppercase tracking-widest bg-black text-white px-1.5 py-0.5 rounded mb-2 inline-block">Default</span>
+                    )}
+                    <p className="font-medium text-[var(--text-primary)]">{addr.name}</p>
+                    <p className="text-[var(--text-secondary)]">{addr.line1}</p>
+                    {addr.line2 && <p className="text-[var(--text-secondary)]">{addr.line2}</p>}
+                    <p className="text-[var(--text-secondary)]">{addr.city}, {addr.state} - {addr.pincode}</p>
+                    {addr.phone && (
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Phone: {addr.phone}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Payment Info */}
@@ -340,11 +427,149 @@ export default function AdminOrderDetailPage() {
                 <span className={cn('inline-block mt-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest', paymentBadgeClass(order.paymentStatus))}>
                   {order.paymentStatus}
                 </span>
-                {order.razorpayPaymentId && (
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-1">ID: {order.razorpayPaymentId}</p>
-                )}
               </div>
             </div>
+
+            {/* Online Payment Transaction Details (Admin-only) */}
+            {(order.paymentMethod === 'razorpay' || order.paymentMethod === 'online' || order.paymentMethod === 'card' || order.paymentMethod === 'upi') && (paymentDetails || rawPayment || order.razorpayPaymentId) && (
+              <div className="mt-4 pt-4 border-t border-[var(--border)] space-y-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield size={14} className="text-green-600" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-green-700">Transaction Details</span>
+                </div>
+
+                {/* Structured paymentDetails */}
+                {paymentDetails && (
+                  <div className="space-y-2">
+                    {paymentDetails.transactionId && (
+                      <div className="bg-[var(--bg)] p-3 rounded-lg">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Transaction ID</p>
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono text-[var(--text-primary)] break-all">
+                            {paymentDetails.transactionId}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(paymentDetails.transactionId);
+                              toast.success('Transaction ID copied');
+                            }}
+                            className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {paymentDetails.gateway && (
+                        <div className="bg-[var(--bg)] p-3 rounded-lg">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Gateway</p>
+                          <p className="text-xs font-medium text-[var(--text-primary)]">{paymentDetails.gateway}</p>
+                        </div>
+                      )}
+                      {paymentDetails.method && (
+                        <div className="bg-[var(--bg)] p-3 rounded-lg">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Method</p>
+                          <p className="text-xs font-medium text-[var(--text-primary)] capitalize">{paymentDetails.method}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {paymentDetails.amount != null && (
+                        <div className="bg-[var(--bg)] p-3 rounded-lg">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Amount Paid</p>
+                          <p className="text-xs font-bold text-[var(--text-primary)]">₹{Number(paymentDetails.amount).toLocaleString('en-IN')}</p>
+                        </div>
+                      )}
+                      {paymentDetails.status && (
+                        <div className="bg-[var(--bg)] p-3 rounded-lg">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Payment Status</p>
+                          <span className={cn(
+                            'inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest',
+                            paymentDetails.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            paymentDetails.status === 'refunded' ? 'bg-blue-100 text-blue-800' :
+                            paymentDetails.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-700'
+                          )}>{paymentDetails.status}</span>
+                        </div>
+                      )}
+                    </div>
+                    {paymentDetails.paidAt && (
+                      <div className="bg-[var(--bg)] p-3 rounded-lg">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Payment Timestamp</p>
+                        <p className="text-xs font-medium text-[var(--text-primary)]">
+                          {(() => {
+                            const d = paymentDetails.paidAt?.toDate ? paymentDetails.paidAt.toDate() : new Date(paymentDetails.paidAt);
+                            return d.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Legacy Razorpay IDs (fallback if paymentDetails not present) */}
+                {!paymentDetails && (rawPayment?.razorpayPaymentId || order.razorpayPaymentId) && (
+                  <div className="bg-[var(--bg)] p-3 rounded-lg">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Payment ID</p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono text-[var(--text-primary)] break-all">
+                        {rawPayment?.razorpayPaymentId || order.razorpayPaymentId}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(rawPayment?.razorpayPaymentId || order.razorpayPaymentId || '');
+                          toast.success('Payment ID copied');
+                        }}
+                        className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(rawPayment?.razorpayOrderId || order.razorpayOrderId) && (
+                  <div className="bg-[var(--bg)] p-3 rounded-lg">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Razorpay Order ID</p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono text-[var(--text-primary)] break-all">
+                        {rawPayment?.razorpayOrderId || order.razorpayOrderId}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(rawPayment?.razorpayOrderId || order.razorpayOrderId || '');
+                          toast.success('Razorpay Order ID copied');
+                        }}
+                        className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {rawPayment?.razorpaySignature && (
+                  <div className="bg-[var(--bg)] p-3 rounded-lg">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">Signature</p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono text-[var(--text-primary)] break-all truncate max-w-[200px]">
+                        {rawPayment.razorpaySignature}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(rawPayment.razorpaySignature);
+                          toast.success('Signature copied');
+                        }}
+                        className="p-1 hover:bg-[var(--bg-card)] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

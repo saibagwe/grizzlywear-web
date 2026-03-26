@@ -54,6 +54,7 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentPhase, setPaymentPhase] = useState<'idle' | 'connecting' | 'waking' | 'confirming'>('idle');
   const [criticalError, setCriticalError] = useState<{ message: string; paymentId?: string } | null>(null);
+  const [saveToProfile, setSaveToProfile] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -347,6 +348,10 @@ export default function CheckoutPage() {
                                 <input placeholder="State *" value={newAddressForm.state} onChange={e => setNewAddressForm(p => ({...p, state: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full col-span-1" />
                                 <input placeholder="Pincode *" value={newAddressForm.pincode} onChange={e => setNewAddressForm(p => ({...p, pincode: e.target.value}))} className="border p-3 text-sm focus:border-black outline-none w-full col-span-1" />
                               </div>
+                              <label className="flex items-center gap-3 cursor-pointer pt-2">
+                                <input type="checkbox" checked={saveToProfile} onChange={(e) => setSaveToProfile(e.target.checked)} className="w-4 h-4 accent-black" />
+                                <span className="text-xs uppercase tracking-widest font-bold text-gray-600">Save this address to my profile</span>
+                              </label>
                             </div>
                           )}
                         </label>
@@ -360,7 +365,8 @@ export default function CheckoutPage() {
                           toast.error('Please fill all required address fields.');
                           return;
                         }
-                        if (firebaseUser) {
+                        if (firebaseUser && saveToProfile) {
+                          // Save to profile
                           setIsProcessing(true);
                           try {
                             const newId = await addAddress(firebaseUser.uid, {
@@ -378,6 +384,7 @@ export default function CheckoutPage() {
                             setIsProcessing(false);
                           }
                         } else {
+                          // Use address for this order only, do not save to profile
                           setCurrentStep('shipping');
                         }
                       } else {

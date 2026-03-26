@@ -23,6 +23,7 @@
 
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, runTransaction, doc, getDoc } from 'firebase/firestore';
+import { createNotification } from '@/lib/firestore/notificationService';
 
 const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!;
 const ORDER_API_URL = process.env.NEXT_PUBLIC_ORDER_API_URL!;
@@ -228,10 +229,22 @@ export async function saveOrderToFirestore(
       razorpayOrderId: paymentResponse.razorpay_order_id || null,
       razorpaySignature: paymentResponse.razorpay_signature || null,
     },
+    // Feature 9: paymentDetails object
+    paymentDetails: method === 'razorpay' ? {
+      transactionId: paymentResponse.razorpay_payment_id || null,
+      gateway: 'Razorpay',
+      method: 'Online',
+      amount: payload.total,
+      paidAt: serverTimestamp(),
+      status: 'paid',
+    } : null,
     status: 'pending',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
+
+  // Pre-generate the order doc ref so the ID is available after the transaction
+  const orderRef = doc(collection(db, 'orders'));
 
   // Run a transaction to safely decrement stock and save the order
   await runTransaction(db, async (transaction) => {
@@ -281,10 +294,18 @@ export async function saveOrderToFirestore(
       });
     }
     
-    // 3. Create the order document
-    const orderRef = doc(collection(db, 'orders'));
+    // 3. Create the order document using pre-generated ref
     transaction.set(orderRef, orderData);
   });
+
+  // Fire admin notification (best-effort — do not block order confirmation)
+  createNotification({
+    type: 'new_order',
+    message: `New order placed by ${userInfo?.name || 'a customer'} — Order #${orderId}`,
+    linkTo: `/admin/orders/${orderRef.id}`,
+    orderId: orderId,
+    userId: uid,
+  }).catch(() => { /* silently ignore */ });
 
   return orderId;
 }

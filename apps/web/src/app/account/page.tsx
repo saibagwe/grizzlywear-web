@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { subscribeToProducts, type FirestoreProduct } from '@/lib/firestore/productService';
-import { subscribeToUserOrders, type FirestoreOrder } from '@/lib/firestore/orderService';
+import { subscribeToUserOrders, cancelOrder, type FirestoreOrder } from '@/lib/firestore/orderService';
 import {
   subscribeToUserTickets,
   subscribeToTicket,
@@ -123,6 +123,7 @@ export default function AccountPage() {
   // ── Orders state ──
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   // ── Tickets state ──
   const [tickets, setTickets] = useState<FirestoreTicket[]>([]);
@@ -179,14 +180,86 @@ export default function AccountPage() {
     }
   }, [uid, activeTab, loadAddresses]);
 
-  // Load orders — real-time from top-level orders collection
+  // Load orders — real-time from top-level orders collection (with fallback)
   useEffect(() => {
     if (!uid || activeTab !== 'orders') return;
     setOrdersLoading(true);
-    const unsub = subscribeToUserOrders(uid, (data) => {
-      setOrders(data);
-      setOrdersLoading(false);
-    });
+
+    // Try real-time listener first (requires composite index: userId + createdAt)
+    const unsub = subscribeToUserOrders(
+      uid,
+      (data) => {
+        setOrders(data);
+        setOrdersLoading(false);
+      },
+      async (err) => {
+        // Composite index missing — fall back to getDocs without orderBy
+        console.warn('[Orders] Falling back to getDocs due to:', err.message);
+        try {
+          const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          const q = firestoreQuery(
+            firestoreCollection(db, 'orders'),
+            firestoreWhere('userId', '==', uid)
+          );
+          const snap = await getDocs(q);
+          const { default: docToOrderFn } = await import('@/lib/firestore/orderService').then(m => ({ default: m }));
+          // We can't import docToOrder directly since it's not exported, 
+          // so reconstruct from the fetched data
+          const fetchedOrders: FirestoreOrder[] = snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              orderId: data.orderId ?? '',
+              userId: data.userId ?? '',
+              customerName: data.customerName ?? data.shippingAddress?.name ?? '',
+              customerEmail: data.customerEmail ?? '',
+              customerPhone: data.customerPhone ?? data.shippingAddress?.phone ?? '',
+              items: (data.items ?? []).map((item: any) => ({
+                productId: item.productId ?? '',
+                name: item.name ?? '',
+                size: item.size ?? '',
+                quantity: item.quantity ?? 1,
+                price: item.price ?? 0,
+                image: item.image ?? item.imageUrl ?? '',
+              })),
+              subtotal: data.subtotal ?? data.pricing?.subtotal ?? 0,
+              shipping: data.shipping ?? data.pricing?.shippingCharge ?? 0,
+              discount: data.discount ?? data.pricing?.discount ?? 0,
+              total: data.total ?? data.pricing?.total ?? 0,
+              status: (data.status === 'processing' ? 'confirmed' : data.status) ?? 'pending',
+              paymentMethod: data.paymentMethod ?? data.payment?.method ?? 'cod',
+              paymentStatus: data.paymentStatus ?? data.payment?.status ?? 'pending',
+              shippingAddress: {
+                name: data.shippingAddress?.name ?? '',
+                address: data.shippingAddress?.address ?? data.shippingAddress?.line1 ?? '',
+                city: data.shippingAddress?.city ?? '',
+                state: data.shippingAddress?.state ?? '',
+                pincode: data.shippingAddress?.pincode ?? '',
+                country: data.shippingAddress?.country ?? 'India',
+                phone: data.shippingAddress?.phone ?? '',
+              },
+              paymentDetails: data.paymentDetails ?? null,
+              razorpayPaymentId: data.razorpayPaymentId ?? data.payment?.razorpayPaymentId ?? null,
+              razorpayOrderId: data.razorpayOrderId ?? data.payment?.razorpayOrderId ?? null,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt,
+            } as FirestoreOrder;
+          });
+          // Sort client-side (newest first)
+          fetchedOrders.sort((a, b) => {
+            const ta = (a.createdAt as any)?.toMillis?.() ?? (a.createdAt as any)?.seconds * 1000 ?? 0;
+            const tb = (b.createdAt as any)?.toMillis?.() ?? (b.createdAt as any)?.seconds * 1000 ?? 0;
+            return tb - ta;
+          });
+          setOrders(fetchedOrders);
+        } catch (fallbackErr) {
+          console.error('[Orders] Fallback also failed:', fallbackErr);
+          setOrders([]);
+        }
+        setOrdersLoading(false);
+      }
+    );
     return () => unsub();
   }, [uid, activeTab]);
 
@@ -284,6 +357,20 @@ export default function AccountPage() {
     await logout();
     toast.success('Logged out successfully');
     window.location.href = '/';
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    const confirmed = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
+    if (!confirmed) return;
+    setCancellingOrderId(orderId);
+    try {
+      await cancelOrder(orderId);
+      toast.success('Order cancelled successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel order');
+    } finally {
+      setCancellingOrderId(null);
+    }
   };
 
   // ── Address modal helpers ──
@@ -559,9 +646,20 @@ export default function AccountPage() {
                           </div>
                           <div className="text-left sm:text-right flex flex-col items-start sm:items-end gap-1">
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Order # {order.orderId}</p>
-                            <span className={cn('inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border', statusColor)}>
-                              {order.status}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={cn('inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border', statusColor)}>
+                                {order.status}
+                              </span>
+                              <span className={cn(
+                                'inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border',
+                                order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' :
+                                order.paymentStatus === 'refunded' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                order.paymentStatus === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' :
+                                'bg-yellow-100 text-yellow-700 border-yellow-200'
+                              )}>
+                                {order.paymentStatus}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="p-6">
@@ -583,12 +681,27 @@ export default function AccountPage() {
                             ))}
                           </div>
                           <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <Link
-                              href={`/track?orderId=${encodeURIComponent(order.orderId)}`}
-                              className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
-                            >
-                              <Truck size={14} /> Track Order
-                            </Link>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <Link
+                                href={`/track?orderId=${encodeURIComponent(order.orderId)}`}
+                                className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
+                              >
+                                <Truck size={14} /> Track Order
+                              </Link>
+                              {(order.status === 'pending' || order.status === 'confirmed') && (
+                                <button
+                                  onClick={() => handleCancelOrder(order.id)}
+                                  disabled={cancellingOrderId === order.id}
+                                  className="inline-flex items-center gap-2 border border-red-400 text-red-600 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-red-50 transition-colors disabled:opacity-50"
+                                >
+                                  {cancellingOrderId === order.id ? (
+                                    <><Loader2 size={14} className="animate-spin" /> Cancelling...</>
+                                  ) : (
+                                    <><X size={14} /> Cancel Order</>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                             <Link href={`/orders/confirmation/${order.orderId}`} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4">
                               View Details
                             </Link>

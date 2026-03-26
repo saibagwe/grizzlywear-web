@@ -341,7 +341,7 @@ export default function AdminOrdersPage() {
                 <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-500">
                   <IndianRupee size={20} />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Total Revenue</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Gross Sales</span>
               </div>
               <p className="text-3xl font-bold text-[var(--text-primary)]">₹{stats.revenue.toLocaleString('en-IN')}</p>
             </div>
@@ -537,7 +537,7 @@ export default function AdminOrdersPage() {
                             STATUS_OPTIONS.find(opt => opt.value === order.status)?.color || "bg-gray-100 text-gray-700"
                           )}
                         >
-                          {STATUS_OPTIONS.filter(o => o.value && getAvailableStatuses(order.status).includes(o.value as OrderStatus)).map(opt => (
+                          {STATUS_OPTIONS.filter(o => o.value && o.value !== 'cancelled' && getAvailableStatuses(order.status).includes(o.value as OrderStatus)).map(opt => (
                             <option key={opt.value} value={opt.value} className="text-[var(--text-primary)] bg-[var(--bg-card)]">{opt.label}</option>
                           ))}
                         </select>

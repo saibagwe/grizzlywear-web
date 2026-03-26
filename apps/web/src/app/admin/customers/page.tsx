@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Search, 
@@ -72,21 +72,27 @@ export default function AdminCustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    let loadedCount = 0;
+    const markLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 2) setLoading(false);
+    };
+
     const unsubUsers = subscribeToAllUsers((data) => {
       setUsers(data);
-      if (orders.length > 0) setLoading(false);
-    }, () => {});
+      markLoaded();
+    }, () => { markLoaded(); });
 
     const unsubOrders = subscribeToAllOrders((data) => {
       setOrders(data);
-      if (users.length > 0) setLoading(false);
-    }, () => {});
+      markLoaded();
+    }, () => { markLoaded(); });
 
     return () => {
       unsubUsers();
       unsubOrders();
     };
-  }, [users.length, orders.length]);
+  }, []);
 
   const userStats = useMemo(() => {
     const stats: Record<string, { orderCount: number; totalSpent: number }> = {};

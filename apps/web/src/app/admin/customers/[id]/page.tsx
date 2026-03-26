@@ -130,6 +130,9 @@ export default function AdminCustomerDetailPage() {
     const unsubOrders = subscribeToUserOrders(uid, (data) => {
       setOrders(data);
       setLoading(false);
+    }, (err) => {
+      console.error('[AdminCustomerDetail] Orders fetch error:', err);
+      setLoading(false);
     });
 
     return () => {

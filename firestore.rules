@@ -131,6 +131,15 @@ service cloud.firestore {
       allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────
+    // Any authenticated user can create a notification (fired from client on actions).
+    // Only admins can read and update (mark as read).
+    match /notifications/{notifId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+
     // ─── DEFAULT: DENY ALL ─────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

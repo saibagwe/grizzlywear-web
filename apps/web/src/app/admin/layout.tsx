@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -18,11 +18,22 @@ import {
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  Bell,
+  UserPlus,
+  XCircle,
+  UserCog,
+  CheckCheck,
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
 import { subscribeToInventory } from '@/lib/firestore/inventoryService';
+import {
+  subscribeToNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type AdminNotification,
+} from '@/lib/firestore/notificationService';
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -49,6 +60,12 @@ export default function AdminLayout({
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [themeLoaded, setThemeLoaded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Notification bell state
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Initial Responsive State
   useEffect(() => {
@@ -111,6 +128,61 @@ export default function AdminLayout({
     return () => unsub();
   }, []);
 
+  // Real-time notifications
+  useEffect(() => {
+    const unsub = subscribeToNotifications(
+      (data) => setNotifications(data),
+      () => { /* silently ignore */ }
+    );
+    return () => unsub();
+  }, []);
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifPanel(false);
+      }
+    }
+    if (showNotifPanel) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showNotifPanel]);
+
+  function notifIcon(type: string) {
+    switch (type) {
+      case 'new_order': return <ShoppingCart size={14} />;
+      case 'order_cancelled': return <XCircle size={14} />;
+      case 'new_user': return <UserPlus size={14} />;
+      case 'profile_updated': return <UserCog size={14} />;
+      default: return <Bell size={14} />;
+    }
+  }
+
+  function notifColor(type: string) {
+    switch (type) {
+      case 'new_order': return 'bg-green-100 text-green-700';
+      case 'order_cancelled': return 'bg-red-100 text-red-700';
+      case 'new_user': return 'bg-blue-100 text-blue-700';
+      case 'profile_updated': return 'bg-purple-100 text-purple-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  }
+
+  function formatNotifTime(ts: any): string {
+    if (!ts) return '';
+    const d = ts?.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }
+
   if (!initialized || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
@@ -157,6 +229,95 @@ export default function AdminLayout({
                 {pendingCount} pending
               </Link>
             )}
+
+            {/* ── Notification Bell ── */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setShowNotifPanel(!showNotifPanel)}
+                className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                aria-label="Notifications"
+              >
+                <Bell className="w-[18px] h-[18px]" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 animate-in zoom-in duration-200">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Dropdown Panel */}
+              {showNotifPanel && (
+                <>
+                  {/* Mobile backdrop */}
+                  <div className="fixed inset-0 bg-black/30 z-40 sm:hidden" onClick={() => setShowNotifPanel(false)} />
+                  <div className={cn(
+                    "bg-[var(--bg-card)] border border-[var(--border)] shadow-2xl overflow-hidden z-50",
+                    // Mobile: fixed bottom sheet
+                    "fixed inset-x-0 bottom-0 top-auto rounded-t-2xl max-h-[80vh]",
+                    // Desktop: absolute dropdown
+                    "sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] sm:max-h-[520px] sm:rounded-xl",
+                    "animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-top-2 duration-200"
+                  )}>
+                    {/* Drag handle for mobile */}
+                    <div className="flex justify-center py-2 sm:hidden">
+                      <div className="w-10 h-1 bg-[var(--text-muted)]/30 rounded-full" />
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={async () => {
+                            await markAllNotificationsRead();
+                          }}
+                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-md hover:bg-[var(--bg-hover)]"
+                        >
+                          <CheckCheck size={12} /> Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="overflow-y-auto max-h-[60vh] sm:max-h-[420px] divide-y divide-[var(--border)]/30">
+                      {notifications.length === 0 ? (
+                        <div className="py-16 text-center">
+                          <Bell size={32} className="mx-auto text-[var(--text-muted)] mb-3 opacity-20" />
+                          <p className="text-xs text-[var(--text-muted)] uppercase tracking-widest">No notifications yet</p>
+                        </div>
+                      ) : (
+                        notifications.slice(0, 20).map((n) => (
+                          <button
+                            key={n.id}
+                            onClick={async () => {
+                              if (!n.read) await markNotificationRead(n.id);
+                              if (n.linkTo) {
+                                setShowNotifPanel(false);
+                                window.location.href = n.linkTo;
+                              }
+                            }}
+                            className={cn(
+                              'w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-[var(--bg-hover)] transition-colors',
+                              !n.read && 'bg-[var(--bg)]/60'
+                            )}
+                          >
+                            <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5', notifColor(n.type))}>
+                              {notifIcon(n.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={cn('text-sm leading-snug', !n.read ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+                                {n.message}
+                              </p>
+                              <p className="text-[10px] text-[var(--text-muted)] mt-1.5 uppercase tracking-widest">{formatNotifTime(n.createdAt)}</p>
+                            </div>
+                            {!n.read && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0 mt-2 animate-pulse" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
               className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"

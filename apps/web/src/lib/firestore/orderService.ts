@@ -12,11 +12,13 @@ import {
   limit,
   startAfter,
   serverTimestamp,
+  runTransaction,
   type QueryDocumentSnapshot,
   type Unsubscribe,
   type DocumentData,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { createNotification } from '@/lib/firestore/notificationService';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +50,15 @@ export type OrderStatus =
 
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'cancelled';
 
+export type PaymentDetails = {
+  transactionId: string | null;
+  gateway: string;
+  method: string;
+  amount: number;
+  paidAt?: unknown;
+  status: string;
+};
+
 export type FirestoreOrder = {
   id: string; // Firestore document ID
   orderId: string; // Human-readable GW-XXXXXXXX
@@ -64,6 +75,7 @@ export type FirestoreOrder = {
   paymentMethod: string;
   paymentStatus: PaymentStatus;
   shippingAddress: ShippingAddress;
+  paymentDetails?: PaymentDetails | null;
   razorpayPaymentId?: string | null;
   razorpayOrderId?: string | null;
   createdAt?: unknown;
@@ -149,6 +161,7 @@ function docToOrder(id: string, data: DocumentData): FirestoreOrder {
       country: addr.country ?? 'India',
       phone: addr.phone ?? '',
     },
+    paymentDetails: data.paymentDetails ?? null,
     razorpayPaymentId: data.razorpayPaymentId ?? data.payment?.razorpayPaymentId ?? null,
     razorpayOrderId: data.razorpayOrderId ?? data.payment?.razorpayOrderId ?? null,
     createdAt: data.createdAt,
@@ -375,16 +388,26 @@ export function subscribeToMoreFilteredOrders(
 
 export function subscribeToUserOrders(
   userId: string,
-  callback: (orders: FirestoreOrder[]) => void
+  callback: (orders: FirestoreOrder[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, 'orders'),
     where('userId', '==', userId),
     orderBy('createdAt', 'desc')
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => docToOrder(d.id, d.data())));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => docToOrder(d.id, d.data())));
+    },
+    (err) => {
+      console.error('[subscribeToUserOrders] Firestore error:', err.message);
+      // If composite index is missing, Firestore throws an error with a link.
+      // Fall back to returning empty and surface the error.
+      onError?.(err);
+    }
+  );
 }
 
 // ─── UPDATE ORDER STATUS ──────────────────────────────────────────────────────
@@ -418,21 +441,90 @@ export async function updateOrderStatus(
 // ─── CANCEL ORDER (USER) ──────────────────────────────────────────────────────
 
 export async function cancelOrder(id: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'orders', id));
-  if (!snap.exists()) throw new Error('Order not found');
-  const currentData = snap.data();
-  const currentStatus = currentData.status === 'processing' ? 'confirmed' : (currentData.status as OrderStatus);
-  
-  if (currentStatus !== 'pending' && currentStatus !== 'confirmed') {
-    throw new Error('Order cannot be cancelled at this stage.');
-  }
+  await runTransaction(db, async (transaction) => {
+    // 1. Read the order document
+    const orderRef = doc(db, 'orders', id);
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists()) throw new Error('Order not found');
+    const currentData = orderSnap.data();
+    const currentStatus = currentData.status === 'processing' ? 'confirmed' : (currentData.status as OrderStatus);
 
-  const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
-  const newPaymentStatus = derivePaymentStatus('cancelled', paymentMethod, currentData.paymentStatus);
+    if (currentStatus !== 'pending' && currentStatus !== 'confirmed') {
+      throw new Error('Order cannot be cancelled at this stage.');
+    }
 
-  await updateDoc(doc(db, 'orders', id), {
-    status: 'cancelled',
-    paymentStatus: newPaymentStatus,
-    updatedAt: serverTimestamp(),
+    // 2. Read all product documents for items in the order
+    const items: { productId: string; size: string; quantity: number; name: string }[] =
+      (currentData.items ?? []).map((item: any) => ({
+        productId: item.productId,
+        size: item.size ?? '',
+        quantity: item.quantity ?? 1,
+        name: item.name ?? '',
+      }));
+
+    const productReads: { ref: any; data: any; item: typeof items[0] }[] = [];
+    for (const item of items) {
+      const pRef = doc(db, 'products', item.productId);
+      const pSnap = await transaction.get(pRef);
+      if (pSnap.exists()) {
+        productReads.push({ ref: pRef, data: pSnap.data(), item });
+      }
+      // If product was deleted, skip stock restoration (can't restore what doesn't exist)
+    }
+
+    // 3. Restore stock for each item
+    for (const { ref, data: pData, item } of productReads) {
+      const stockData = pData.stock;
+
+      if (typeof stockData === 'object' && stockData !== null) {
+        // Size-wise map: { S: 10, M: 5, L: 0 }
+        const newStock = { ...stockData };
+        const currentSizeStock = newStock[item.size] || 0;
+        newStock[item.size] = currentSizeStock + item.quantity;
+
+        const totalStock = Object.values(newStock).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+
+        transaction.update(ref, {
+          stock: newStock,
+          totalStock: Math.max(0, totalStock),
+          inStock: totalStock > 0,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Flat number stock
+        const currentStock = Number(stockData || 0);
+        const newStock = currentStock + item.quantity;
+
+        transaction.update(ref, {
+          stock: Math.max(0, newStock),
+          totalStock: Math.max(0, newStock),
+          inStock: newStock > 0,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    // 4. Update order status
+    const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
+    const newPaymentStatus = derivePaymentStatus('cancelled', paymentMethod, currentData.paymentStatus);
+
+    transaction.update(orderRef, {
+      status: 'cancelled',
+      paymentStatus: newPaymentStatus,
+      updatedAt: serverTimestamp(),
+    });
   });
+
+  // Fetch order data for notification (outside transaction for best-effort)
+  const snap = await getDoc(doc(db, 'orders', id));
+  const orderData = snap.exists() ? snap.data() : null;
+
+  // Fire admin notification (best-effort)
+  createNotification({
+    type: 'order_cancelled',
+    message: `Order #${orderData?.orderId || id} cancelled by ${orderData?.customerName || 'customer'}`,
+    linkTo: `/admin/orders/${id}`,
+    orderId: orderData?.orderId || id,
+    userId: orderData?.userId || undefined,
+  }).catch(() => { /* silently ignore */ });
 }
