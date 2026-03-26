@@ -492,7 +492,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             <div className="flex items-center gap-3 mb-6">
               <div className="flex text-yellow-500">
                 {[1, 2, 3, 4, 5].map(s => (
-                  <Star key={s} size={28} className={s <= Math.round(avgRating) ? "fill-current" : "text-gray-200 fill-current"} />
+                  <Star key={s} size={28} className={s <= Math.round(avgRating > 0 ? avgRating : 5) ? "fill-current" : "text-gray-200 fill-current"} />
                 ))}
               </div>
               <span className="text-3xl font-light">{avgRating > 0 ? avgRating.toFixed(1) : '5.0'} <span className="text-lg text-[var(--text-muted)]">out of 5</span></span>
