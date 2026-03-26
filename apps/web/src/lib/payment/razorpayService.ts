@@ -22,7 +22,7 @@
  */
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, runTransaction, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { createNotification } from '@/lib/firestore/notificationService';
 
 const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!;
@@ -164,9 +164,12 @@ export function openRazorpayCheckout(
  * Step 3: Save the completed order directly to Firestore /orders collection.
  * Returns the human-readable order ID (GW-XXXXXXXX).
  *
- * NOTE: Only writes to /orders top-level collection (covered by Firestore rules).
- * The user sub-collection mirror was removed — it caused Permission Denied errors
- * because the /users/{uid}/orders path is not explicitly allowed in Firestore rules.
+ * IMPORTANT: Stock decrement is intentionally NOT done here on the client.
+ * The Firestore rules only allow admins to write to the products collection,
+ * so any client-side attempt to decrement stock inside a transaction causes
+ * an "Insufficient permissions" error that rolls back the entire transaction
+ * (including the order creation). Stock is decremented server-side by the
+ * Cloud Function `onOrderCreated` which runs with Firebase Admin privileges.
  */
 export async function saveOrderToFirestore(
   uid: string,
@@ -243,60 +246,9 @@ export async function saveOrderToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  // Pre-generate the order doc ref so the ID is available after the transaction
-  const orderRef = doc(collection(db, 'orders'));
-
-  // Run a transaction to safely decrement stock and save the order
-  await runTransaction(db, async (transaction) => {
-    const productUpdates = [];
-    
-    // 1. Read all product docs
-    for (const item of payload.cartItems) {
-      const pRef = doc(db, 'products', item.productId);
-      const pDoc = await transaction.get(pRef);
-      if (!pDoc.exists()) {
-        throw new Error(`Product not found: ${item.name}`);
-      }
-      productUpdates.push({ ref: pRef, item, pDoc });
-    }
-    
-    // 2. Compute stock changes and validate
-    for (const { ref, item, pDoc } of productUpdates) {
-      const pData = pDoc.data();
-      let newStockData = typeof pData.stock === 'object' && pData.stock !== null ? { ...pData.stock } : Number(pData.stock || 0);
-
-      if (typeof pData.stock === 'object' && pData.stock !== null) {
-        const currentStock = pData.stock[item.size] || 0;
-        if (currentStock < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.name}${item.size ? ` (Size: ${item.size})` : ''}. Available: ${currentStock}`);
-        }
-        newStockData[item.size] = currentStock - item.quantity;
-      } else {
-        const currentStock = Number(pData.stock || 0);
-        if (currentStock < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}`);
-        }
-        newStockData = currentStock - item.quantity;
-      }
-
-      let totalStock = 0;
-      if (typeof newStockData === 'number') {
-        totalStock = newStockData;
-      } else {
-        totalStock = Object.values(newStockData).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-      }
-
-      transaction.update(ref, {
-        stock: newStockData,
-        totalStock: Math.max(0, totalStock),
-        inStock: totalStock > 0,
-        updatedAt: serverTimestamp(),
-      });
-    }
-    
-    // 3. Create the order document using pre-generated ref
-    transaction.set(orderRef, orderData);
-  });
+  // Write only the order document — client has permission for this.
+  // Stock decrement is handled server-side by the onOrderCreated Cloud Function.
+  const orderRef = await addDoc(collection(db, 'orders'), orderData);
 
   // Fire admin notification (best-effort — do not block order confirmation)
   createNotification({

@@ -453,58 +453,15 @@ export async function cancelOrder(id: string): Promise<void> {
       throw new Error('Order cannot be cancelled at this stage.');
     }
 
-    // 2. Read all product documents for items in the order
-    const items: { productId: string; size: string; quantity: number; name: string }[] =
-      (currentData.items ?? []).map((item: any) => ({
-        productId: item.productId,
-        size: item.size ?? '',
-        quantity: item.quantity ?? 1,
-        name: item.name ?? '',
-      }));
+    // NOTE: Stock restoration is intentionally NOT done here on the client.
+    // Firestore rules only allow admins to write to the products collection,
+    // so writing to products inside a client-side transaction causes
+    // "Insufficient permissions" and rolls back the entire transaction
+    // (including the order status update). Stock restoration is handled
+    // server-side by the onOrderCancelled Cloud Function which runs with
+    // Firebase Admin privileges.
 
-    const productReads: { ref: any; data: any; item: typeof items[0] }[] = [];
-    for (const item of items) {
-      const pRef = doc(db, 'products', item.productId);
-      const pSnap = await transaction.get(pRef);
-      if (pSnap.exists()) {
-        productReads.push({ ref: pRef, data: pSnap.data(), item });
-      }
-      // If product was deleted, skip stock restoration (can't restore what doesn't exist)
-    }
-
-    // 3. Restore stock for each item
-    for (const { ref, data: pData, item } of productReads) {
-      const stockData = pData.stock;
-
-      if (typeof stockData === 'object' && stockData !== null) {
-        // Size-wise map: { S: 10, M: 5, L: 0 }
-        const newStock = { ...stockData };
-        const currentSizeStock = newStock[item.size] || 0;
-        newStock[item.size] = currentSizeStock + item.quantity;
-
-        const totalStock = Object.values(newStock).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
-
-        transaction.update(ref, {
-          stock: newStock,
-          totalStock: Math.max(0, totalStock),
-          inStock: totalStock > 0,
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        // Flat number stock
-        const currentStock = Number(stockData || 0);
-        const newStock = currentStock + item.quantity;
-
-        transaction.update(ref, {
-          stock: Math.max(0, newStock),
-          totalStock: Math.max(0, newStock),
-          inStock: newStock > 0,
-          updatedAt: serverTimestamp(),
-        });
-      }
-    }
-
-    // 4. Update order status
+    // 2. Update order status to cancelled
     const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
     const newPaymentStatus = derivePaymentStatus('cancelled', paymentMethod, currentData.paymentStatus);
 
