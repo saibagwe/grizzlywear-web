@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  Warehouse,
   Users,
   BarChart3,
   Star,
@@ -27,7 +26,7 @@ import {
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
-import { subscribeToInventory } from '@/lib/firestore/inventoryService';
+
 import {
   subscribeToNotifications,
   markNotificationRead,
@@ -39,7 +38,6 @@ const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, showBadge: true },
-  { href: '/admin/inventory', label: 'Inventory', icon: Warehouse, showLowStockBadge: true },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/reviews', label: 'Reviews', icon: Star },
@@ -56,7 +54,7 @@ export default function AdminLayout({
   const { isAdmin, loading, initialized } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketCount, setOpenTicketCount] = useState(0);
-  const [lowStockCount, setLowStockCount] = useState(0);
+
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [themeLoaded, setThemeLoaded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -119,14 +117,7 @@ export default function AdminLayout({
     return () => unsub();
   }, []);
 
-  // Real-time low stock badge
-  useEffect(() => {
-    const unsub = subscribeToInventory((items) => {
-      const lowStock = items.filter((item) => item.totalStock < item.lowStockThreshold);
-      setLowStockCount(lowStock.length);
-    });
-    return () => unsub();
-  }, []);
+
 
   // Real-time notifications
   useEffect(() => {
@@ -407,15 +398,7 @@ export default function AdminLayout({
                           {openTicketCount}
                         </span>
                       )}
-                      {(item as any).showLowStockBadge && lowStockCount > 0 && (
-                        <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
-                          isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-red-500 text-white',
-                          !isSidebarOpen && "hidden"
-                        )}>
-                          {lowStockCount}
-                        </span>
-                      )}
+
                     </Link>
                   </li>
                 );

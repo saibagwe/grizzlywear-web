@@ -16,11 +16,7 @@ import {
   type ProductInput,
   type FirestoreProduct,
 } from '@/lib/firestore/productService';
-import {
-  createInventoryItem,
-  getInventoryItem,
-  type InventoryItem,
-} from '@/lib/firestore/inventoryService';
+
 
 const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
@@ -161,20 +157,7 @@ export default function AddEditProductPage() {
         toast.success('Product updated!');
       } else {
         const productId = await createProduct(productData);
-        // Create initial inventory with 0 stock
-        const initialStock: Record<string, number> = {};
-        selectedSizes.forEach(s => initialStock[s] = 0);
-        
-        await createInventoryItem({
-          productId,
-          productName: formData.name,
-          category: formData.category,
-          imageUrl: images[0] || '',
-          stock: initialStock,
-          totalStock: 0,
-          lowStockThreshold: 10,
-        });
-        toast.success('Product created! Visit Inventory page to set stock.');
+        toast.success('Product created successfully!');
       }
       router.push('/admin/products');
     } catch (err) {
@@ -192,7 +175,7 @@ export default function AddEditProductPage() {
         <Link href="/admin/products" className="w-10 h-10 border flex items-center justify-center hover:bg-[var(--bg)]"><ArrowLeft size={16} /></Link>
         <div>
           <h1 className="text-2xl font-semibold">{isEditing ? 'Edit Product' : 'New Product'}</h1>
-          <p className="text-sm text-[var(--text-secondary)]">Stock is managed only through the Inventory page.</p>
+          <p className="text-sm text-[var(--text-secondary)]">Stock is managed through the product stock fields.</p>
         </div>
       </div>
 
