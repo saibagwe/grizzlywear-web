@@ -475,13 +475,20 @@ export async function cancelOrder(id: string): Promise<void> {
   // Fetch order data for notification (outside transaction for best-effort)
   const snap = await getDoc(doc(db, 'orders', id));
   const orderData = snap.exists() ? snap.data() : null;
+  const customerName = orderData?.customerName || 'A customer';
 
-  // Fire admin notification (best-effort)
+  // Fire admin cancellation notification (best-effort)
   createNotification({
-    type: 'order_cancelled',
-    message: `Order #${orderData?.orderId || id} cancelled by ${orderData?.customerName || 'customer'}`,
-    linkTo: `/admin/orders/${id}`,
-    orderId: orderData?.orderId || id,
-    userId: orderData?.userId || undefined,
+    type: 'cancellation',
+    category: 'orders',
+    title: 'Order Cancelled',
+    message: `${customerName} cancelled order #${orderData?.orderId || id}`,
+    referenceId: orderData?.orderId || id,
+    referenceUrl: `/admin/orders/${id}`,
+    triggeredBy: {
+      userId: orderData?.userId || '',
+      userName: customerName,
+      userEmail: orderData?.customerEmail || '',
+    },
   }).catch(() => { /* silently ignore */ });
 }

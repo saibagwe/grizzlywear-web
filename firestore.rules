@@ -3,7 +3,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────
-
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -19,60 +18,29 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function derivePaymentStatus(newStatus, oldData) {
-      let pm = oldData.get('paymentMethod', oldData.get(['payment', 'method'], 'cod'));
-      let isOnline = pm == 'online' || pm == 'razorpay' || pm == 'card' || pm == 'upi';
-      let oldPs = oldData.get('paymentStatus', '');
-      
-      return isOnline ? (
-        newStatus == 'cancelled' ? (
-          (oldPs == 'paid' || oldPs == 'paid_online') ? 'refunded' : 'cancelled'
-        ) :
-        newStatus == 'pending' ? (
-          (oldPs == 'paid' || oldPs == 'paid_online') ? 'paid' : 'pending'
-        ) :
-        'paid'
-      ) : (
-        newStatus == 'delivered' ? 'paid' :
-        newStatus == 'cancelled' ? 'cancelled' :
-        'pending'
-      );
-    }
-
-    function isForwardStatusProgress(oldStatus, newStatus) {
-      return (oldStatus == 'pending' && newStatus == 'confirmed') ||
-             (oldStatus == 'confirmed' && newStatus == 'shipped') ||
-             (oldStatus == 'shipped' && newStatus == 'delivered') ||
-             (oldStatus == newStatus);
-    }
-
     // ─── PRODUCTS COLLECTION ───────────────────────────────────────────────────
-    // Anyone can read products. Only admins can write.
-
     match /products/{productId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
+    // ─── INVENTORY COLLECTION ──────────────────────────────────────────────────
     match /inventory/{productId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated();
     }
 
     // ─── USERS COLLECTION ──────────────────────────────────────────────────────
-
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow create: if isAuthenticated() && isOwner(userId);
       allow update: if isAuthenticated() && isOwner(userId);
       allow delete: if isAdmin();
 
-      // Addresses subcollection
       match /addresses/{addressId} {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
 
-      // Orders subcollection (mirror) — user can create/read their own
       match /orders/{orderId} {
         allow read, create: if isAuthenticated() && isOwner(userId);
         allow update, delete: if isAdmin();
@@ -80,81 +48,63 @@ service cloud.firestore {
     }
 
     // ─── ORDERS COLLECTION (top-level) ─────────────────────────────────────────
-    // Authenticated users can CREATE orders (Firestore rule checks auth, not userId field at create time)
-    // Users can READ their own orders; admins can read/write all.
-
     match /orders/{orderId} {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      // Single-document read: any authenticated user can read (needed for order tracking)
-      allow get: if isAuthenticated();
-      // Collection query (list): admins can list all;
-      // authenticated users can list (needed for userId filter queries in order history).
+      // Single-document read: owner or admin
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Collection query (list)
       allow list: if isAuthenticated();
-      allow update: if (isAdmin() && 
-                        isForwardStatusProgress(resource.data.status, request.resource.data.status) &&
-                        request.resource.data.status != 'cancelled' &&
-                        request.resource.data.paymentStatus == derivePaymentStatus(request.resource.data.status, resource.data)
-                      ) || (
-        isAuthenticated() &&
-        resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'cancelled' &&
-        (resource.data.status == 'pending' || resource.data.status == 'confirmed' || resource.data.status == 'processing') &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paymentStatus', 'updatedAt']) &&
-        request.resource.data.paymentStatus == derivePaymentStatus('cancelled', resource.data)
-      );
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ─── TICKETS COLLECTION ────────────────────────────────────────────────────
-    // Authenticated users can create tickets.
-    // Users can read/update their own tickets; admins can read/update all.
-
+    // ─── TICKETS COLLECTION (Customer Support) ──────────────────────────────────
     match /tickets/{ticketId} {
       allow create: if isAuthenticated();
-      // Individual document read
       allow get: if isAuthenticated() && (
         request.auth.uid == resource.data.userId || isAdmin()
       );
-      // Collection query
       allow list: if isAuthenticated(); 
-      
       allow update: if isAuthenticated() && (
         request.auth.uid == resource.data.userId || isAdmin()
       );
     }
 
     // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────
-    // Any authenticated user can create a notification (fired from client on actions).
-    // Only admins can read and update (mark as read).
-    match /notifications/{notifId} {
-      allow create: if isAuthenticated();
+    match /notifications/{notificationId} {
+      // Any authenticated user can read notifications
       allow read: if isAuthenticated();
-      allow update: if isAuthenticated();
+
+      // Authenticated users can create notifications (client-side triggers)
+      allow create: if isAuthenticated();
+
+      // Only allow updating the 'read' field
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Allow delete for "Clear all" functionality
+      allow delete: if isAuthenticated();
     }
 
     // ─── REVIEWS COLLECTION ────────────────────────────────────────────────────
     match /reviews/{reviewId} {
-      // Anyone can read approved reviews. Admins and the review author can read any status.
-      allow read: if resource.data.status == "approved" || isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      // Anyone can read approved reviews. The author or admins can read any status.
+      allow read: if resource.data.status == "approved" 
+                  || isAdmin() 
+                  || (isAuthenticated() && request.auth.uid == resource.data.userId);
 
       // Only logged in users can create a review for themselves
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
 
-      // User can only update their own review if still pending. Admins can update any review.
-      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId && resource.data.status == "pending");
+      // User can update their own review if still pending. Admins can update any review.
+      allow update: if isAdmin() 
+                    || (isAuthenticated() && request.auth.uid == resource.data.userId && resource.data.status == "pending");
 
       // Only admins and the author can delete
-      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      allow delete: if isAdmin() 
+                    || (isAuthenticated() && request.auth.uid == resource.data.userId);
     }
 
-    // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────
-    // Any authenticated user can create a notification (fired from client on actions).
-    // Only admins can read and update (mark as read).
-    match /notifications/{notifId} {
-      allow create: if isAuthenticated();
-      allow read: if isAuthenticated();
-      allow update: if isAuthenticated();
-    }
 
     // ─── DEFAULT: DENY ALL ─────────────────────────────────────────────────────
     match /{document=**} {

@@ -15,7 +15,6 @@ import {
   createRazorpayOrder,
   openRazorpayCheckout,
   saveOrderToFirestore,
-  validateStockBeforePayment,
   type OrderPayload,
   type DeliveryAddress,
 } from '@/lib/payment/razorpayService';
@@ -139,14 +138,6 @@ export default function CheckoutPage() {
     }
 
     setIsProcessing(true);
-
-    try {
-      await validateStockBeforePayment(checkoutStore.cartSnapshot);
-    } catch (err: any) {
-      toast.error(err.message);
-      setIsProcessing(false);
-      return;
-    }
 
     const payload = buildOrderPayload();
 

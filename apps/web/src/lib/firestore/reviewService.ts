@@ -1,4 +1,5 @@
 import { db, storage } from '@/lib/firebase';
+import { createNotification } from '@/lib/firestore/notificationService';
 import {
   collection,
   doc,
@@ -88,6 +89,30 @@ export async function submitReview(data: Omit<FirestoreReview, 'id' | 'createdAt
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now()
   });
+
+  // Fire admin notification for new review (best-effort)
+  // Fetch product name for the notification message
+  let productName = data.productName || 'a product';
+  try {
+    const productSnap = await getDoc(doc(db, 'products', data.productId));
+    if (productSnap.exists()) {
+      productName = productSnap.data()?.name || productName;
+    }
+  } catch { /* best effort */ }
+
+  createNotification({
+    type: 'review',
+    category: 'reviews',
+    title: 'New Review Submitted',
+    message: `${data.userName || 'A user'} submitted a ${data.rating}★ review for ${productName} — pending approval`,
+    referenceId: newDocRef.id,
+    referenceUrl: `/admin/reviews/${newDocRef.id}`,
+    triggeredBy: {
+      userId: data.userId || '',
+      userName: data.userName || '',
+      userEmail: data.customerEmail || '',
+    },
+  }).catch(() => { /* silently ignore */ });
 }
 
 // --- UPDATE OWN REVIEW ---

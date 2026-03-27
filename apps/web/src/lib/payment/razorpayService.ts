@@ -248,16 +248,39 @@ export async function saveOrderToFirestore(
 
   // Write only the order document — client has permission for this.
   // Stock decrement is handled server-side by the onOrderCreated Cloud Function.
-  const orderRef = await addDoc(collection(db, 'orders'), orderData);
+  await addDoc(collection(db, 'orders'), orderData);
 
   // Fire admin notification (best-effort — do not block order confirmation)
   createNotification({
-    type: 'new_order',
-    message: `New order placed by ${userInfo?.name || 'a customer'} — Order #${orderId}`,
-    linkTo: `/admin/orders/${orderRef.id}`,
-    orderId: orderId,
-    userId: uid,
+    type: 'order',
+    category: 'orders',
+    title: 'New Order Placed',
+    message: `${userInfo?.name || 'A customer'} placed a new order #${orderId} worth ₹${payload.total}`,
+    referenceId: orderId,
+    referenceUrl: `/admin/orders/${orderId}`,
+    triggeredBy: {
+      userId: uid,
+      userName: userInfo?.name || '',
+      userEmail: userInfo?.email || '',
+    },
   }).catch(() => { /* silently ignore */ });
+
+  // Payment received notification for online payments
+  if (method === 'razorpay') {
+    createNotification({
+      type: 'order',
+      category: 'orders',
+      title: 'Payment Received',
+      message: `Payment of ₹${payload.total} received for order #${orderId}`,
+      referenceId: `payment-${orderId}`,
+      referenceUrl: `/admin/orders/${orderId}`,
+      triggeredBy: {
+        userId: uid,
+        userName: userInfo?.name || '',
+        userEmail: userInfo?.email || '',
+      },
+    }).catch(() => { /* silently ignore */ });
+  }
 
   return orderId;
 }

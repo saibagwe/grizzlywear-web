@@ -87,12 +87,19 @@ export async function createUserProfile(uid: string, data: Partial<UserProfile>)
     updatedAt: serverTimestamp(),
   }, { merge: true });
 
-  // Fire admin notification (best-effort)
+  // Fire admin notification for new user (best-effort)
   createNotification({
-    type: 'new_user',
-    message: `New user signed up: ${data.email || 'Unknown'}`,
-    linkTo: '/admin/customers',
-    userId: uid,
+    type: 'user',
+    category: 'users',
+    title: 'New User Registered',
+    message: `New user signed up: ${data.fullName || 'Unknown'} (${data.email || ''})`,
+    referenceId: uid,
+    referenceUrl: `/admin/customers/${uid}`,
+    triggeredBy: {
+      userId: uid,
+      userName: data.fullName || '',
+      userEmail: data.email || '',
+    },
   }).catch(() => { /* silently ignore */ });
 }
 
@@ -106,13 +113,7 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
     updatedAt: serverTimestamp(),
   });
 
-  // Fire admin notification (best-effort)
-  createNotification({
-    type: 'profile_updated',
-    message: `User ${data.fullName || 'Unknown'} updated their profile`,
-    linkTo: '/admin/customers',
-    userId: uid,
-  }).catch(() => { /* silently ignore */ });
+  // Profile update notification handled server-side.
 }
 
 // ─── ADDRESSES ────────────────────────────────────────────────

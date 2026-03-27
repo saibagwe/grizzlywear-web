@@ -13,6 +13,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { createNotification } from '@/lib/firestore/notificationService';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ export async function createTicket(
   data: Omit<TicketInput, 'ticketId' | 'status' | 'priority' | 'messages'>
 ): Promise<string> {
   const ticketId = generateTicketId();
-  await addDoc(collection(db, 'tickets'), {
+  const docRef = await addDoc(collection(db, 'tickets'), {
     ...data,
     ticketId,
     status: 'open' as TicketStatus,
@@ -108,6 +109,22 @@ export async function createTicket(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  // Fire admin notification for new ticket (best-effort)
+  createNotification({
+    type: 'ticket',
+    category: 'tickets',
+    title: 'New Support Ticket',
+    message: `${data.customerName || 'A user'} raised a new ticket: ${data.subject || 'No subject'}`,
+    referenceId: ticketId,
+    referenceUrl: `/admin/tickets/${docRef.id}`,
+    triggeredBy: {
+      userId: data.userId || '',
+      userName: data.customerName || '',
+      userEmail: data.customerEmail || '',
+    },
+  }).catch(() => { /* silently ignore */ });
+
   return ticketId;
 }
 
@@ -208,6 +225,24 @@ export async function addTicketMessage(
     messages: [...currentMessages, newMessage],
     updatedAt: serverTimestamp(),
   });
+
+  // Fire admin notification for customer replies only (best-effort)
+  if (message.senderRole === 'customer') {
+    const ticketData = snap.data();
+    createNotification({
+      type: 'ticket',
+      category: 'tickets',
+      title: 'Ticket Reply',
+      message: `${message.senderName || 'A user'} replied to ticket #${ticketData.ticketId || ticketDocId}`,
+      referenceId: ticketData.ticketId || ticketDocId,
+      referenceUrl: `/admin/tickets/${ticketDocId}`,
+      triggeredBy: {
+        userId: message.senderId || '',
+        userName: message.senderName || '',
+        userEmail: ticketData.customerEmail || '',
+      },
+    }).catch(() => { /* silently ignore */ });
+  }
 }
 
 // ─── UPDATE TICKET STATUS ────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -19,10 +19,8 @@ import {
   Menu,
   X,
   Bell,
-  UserPlus,
-  XCircle,
-  UserCog,
   CheckCheck,
+  Trash2,
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
@@ -30,9 +28,12 @@ import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
 import {
   subscribeToNotifications,
   subscribeToUnreadCount,
+  subscribeToUnreadCountsByCategory,
   markNotificationRead,
   markAllNotificationsRead,
+  clearAllReadNotifications,
   type AdminNotification,
+  type NotificationCategory,
 } from '@/lib/firestore/notificationService';
 
 const adminNavItems = [
@@ -44,6 +45,56 @@ const adminNavItems = [
   { href: '/admin/reviews', label: 'Reviews', icon: Star },
   { href: '/admin/tickets', label: 'Tickets', icon: MessageSquare, showTicketBadge: true },
 ];
+
+const CATEGORY_TABS: Array<{ key: 'all' | NotificationCategory; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'tickets', label: 'Tickets' },
+  { key: 'users', label: 'Users' },
+];
+
+function getCategoryIcon(n: AdminNotification): string {
+  switch (n.type) {
+    case 'order': return '🛒';
+    case 'cancellation': return '🛒';
+    case 'review': return '⭐';
+    case 'ticket': return '🎫';
+    case 'user': return '👤';
+    case 'stock': return '📦';
+    default: return '🔔';
+  }
+}
+
+function getCategoryIconColor(n: AdminNotification): string {
+  switch (n.type) {
+    case 'order': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400';
+    case 'cancellation': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+    case 'review': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+    case 'ticket': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400';
+    case 'user': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400';
+    case 'stock': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400';
+    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
+function formatNotifTime(ts: any): string {
+  if (!ts) return '';
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays === 1) {
+    return `Yesterday ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+  }
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
 
 export default function AdminLayout({
   children,
@@ -64,6 +115,14 @@ export default function AdminLayout({
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCounts, setUnreadCounts] = useState<Record<NotificationCategory, number>>({
+    orders: 0,
+    reviews: 0,
+    tickets: 0,
+    users: 0,
+  });
+  const [activeTab, setActiveTab] = useState<'all' | NotificationCategory>('all');
+  const [isClearing, setIsClearing] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Initial Responsive State
@@ -127,12 +186,18 @@ export default function AdminLayout({
     return () => unsub();
   }, []);
 
+  // Real-time category-wise unread counts (always active)
+  useEffect(() => {
+    const unsub = subscribeToUnreadCountsByCategory(
+      (counts) => setUnreadCounts(counts),
+      () => { /* silently ignore */ }
+    );
+    return () => unsub();
+  }, []);
+
   // Real-time notifications (ONLY WHEN PANEL IS OPEN)
   useEffect(() => {
     if (!showNotifPanel) {
-      // Free memory when closed, wait... prompt says:
-      // "When the dropdown opens, fetch and display all notifications sorted by createdAt descending (newest first)"
-      // So fetching when open via onSnapshot is perfect.
       return;
     }
     const unsub = subscribeToNotifications(
@@ -153,40 +218,28 @@ export default function AdminLayout({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showNotifPanel]);
 
-  function notifIcon(type: string) {
-    switch (type) {
-      case 'new_order': return <ShoppingCart size={14} />;
-      case 'order_cancelled': return <XCircle size={14} />;
-      case 'new_user': return <UserPlus size={14} />;
-      case 'profile_updated': return <UserCog size={14} />;
-      default: return <Bell size={14} />;
-    }
-  }
+  // Filtered notifications based on active tab
+  const filteredNotifications = activeTab === 'all'
+    ? notifications
+    : notifications.filter((n) => n.category === activeTab);
 
-  function notifColor(type: string) {
-    switch (type) {
-      case 'new_order': return 'bg-green-100 text-green-700';
-      case 'order_cancelled': return 'bg-red-100 text-red-700';
-      case 'new_user': return 'bg-blue-100 text-blue-700';
-      case 'profile_updated': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  }
+  const handleClearAll = useCallback(async () => {
+    setIsClearing(true);
+    try {
+      await clearAllReadNotifications();
+    } catch { /* silently ignore */ }
+    setIsClearing(false);
+  }, []);
 
-  function formatNotifTime(ts: any): string {
-    if (!ts) return '';
-    const d = ts?.toDate ? ts.toDate() : new Date(ts);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHrs = Math.floor(diffMin / 60);
-    if (diffHrs < 24) return `${diffHrs}h ago`;
-    const diffDays = Math.floor(diffHrs / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  }
+  const categoryEmptyMessage = (tab: 'all' | NotificationCategory): string => {
+    switch (tab) {
+      case 'orders': return 'No order notifications yet';
+      case 'reviews': return 'No review notifications yet';
+      case 'tickets': return 'No ticket notifications yet';
+      case 'users': return 'No user notifications yet';
+      default: return 'No notifications yet';
+    }
+  };
 
   if (!initialized || loading) {
     return (
@@ -245,7 +298,7 @@ export default function AdminLayout({
                 <Bell className="w-[18px] h-[18px]" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 animate-in zoom-in duration-200">
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
@@ -260,60 +313,135 @@ export default function AdminLayout({
                     // Mobile: fixed bottom sheet
                     "fixed inset-x-0 bottom-0 top-auto rounded-t-2xl max-h-[80vh]",
                     // Desktop: absolute dropdown
-                    "sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] sm:max-h-[520px] sm:rounded-xl",
+                    "sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[420px] sm:max-h-[580px] sm:rounded-xl",
                     "animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-top-2 duration-200"
                   )}>
                     {/* Drag handle for mobile */}
                     <div className="flex justify-center py-2 sm:hidden">
                       <div className="w-10 h-1 bg-[var(--text-muted)]/30 rounded-full" />
                     </div>
+
+                    {/* ── Header ── */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
                       <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">Notifications</h3>
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={async () => {
-                            await markAllNotificationsRead();
-                          }}
-                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-md hover:bg-[var(--bg-hover)]"
-                        >
-                          <CheckCheck size={12} /> Mark all read
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {notifications.some(n => n.read) && (
+                          <button
+                            onClick={handleClearAll}
+                            disabled={isClearing}
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-red-500 transition-colors px-2 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                            title="Clear all read notifications"
+                          >
+                            <Trash2 size={11} /> Clear
+                          </button>
+                        )}
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={async () => {
+                              await markAllNotificationsRead();
+                            }}
+                            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-md hover:bg-[var(--bg-hover)]"
+                          >
+                            <CheckCheck size={12} /> Mark all read
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="overflow-y-auto max-h-[60vh] sm:max-h-[420px] divide-y divide-[var(--border)]/30">
-                      {notifications.length === 0 ? (
+
+                    {/* ── Category Tabs ── */}
+                    <div className="flex items-center gap-0.5 px-3 py-2 border-b border-[var(--border)] bg-[var(--bg)] overflow-x-auto scrollbar-hide">
+                      {CATEGORY_TABS.map((tab) => {
+                        const isActive = activeTab === tab.key;
+                        const count = tab.key === 'all'
+                          ? unreadCount
+                          : unreadCounts[tab.key as NotificationCategory] ?? 0;
+                        return (
+                          <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-all whitespace-nowrap',
+                              isActive
+                                ? 'bg-[var(--text-primary)] text-[var(--bg-card)]'
+                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                            )}
+                          >
+                            {tab.label}
+                            {count > 0 && (
+                              <span className={cn(
+                                'min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold rounded-full px-1',
+                                isActive
+                                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)]'
+                                  : 'bg-red-500 text-white'
+                              )}>
+                                {count > 99 ? '99+' : count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* ── Notification List ── */}
+                    <div className="overflow-y-auto max-h-[55vh] sm:max-h-[400px] divide-y divide-[var(--border)]/30">
+                      {filteredNotifications.length === 0 ? (
                         <div className="py-16 text-center">
                           <Bell size={32} className="mx-auto text-[var(--text-muted)] mb-3 opacity-20" />
-                          <p className="text-xs text-[var(--text-muted)] uppercase tracking-widest">No notifications yet</p>
+                          <p className="text-xs text-[var(--text-muted)] uppercase tracking-widest">
+                            {categoryEmptyMessage(activeTab)}
+                          </p>
                         </div>
                       ) : (
-                        notifications.slice(0, 20).map((n) => (
+                        filteredNotifications.slice(0, 50).map((n) => (
                           <button
                             key={n.id}
                             onClick={async () => {
                               if (!n.read) await markNotificationRead(n.id);
-                              if (n.linkTo) {
+                              if (n.referenceUrl) {
                                 setShowNotifPanel(false);
-                                window.location.href = n.linkTo;
+                                router.push(n.referenceUrl);
                               }
                             }}
                             className={cn(
-                              'w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-[var(--bg-hover)] transition-colors',
+                              'w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-[var(--bg-hover)] transition-colors group',
                               !n.read && 'bg-[var(--bg)]/60'
                             )}
                           >
-                            <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5', notifColor(n.type))}>
-                              {notifIcon(n.type)}
+                            {/* Unread dot */}
+                            <div className="w-2 flex-shrink-0 mt-2.5">
+                              {!n.read && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                              )}
                             </div>
+
+                            {/* Category icon */}
+                            <div className={cn(
+                              'w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm',
+                              getCategoryIconColor(n)
+                            )}>
+                              {getCategoryIcon(n)}
+                            </div>
+
+                            {/* Content */}
                             <div className="flex-1 min-w-0">
-                              <p className={cn('text-sm leading-snug', !n.read ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+                              <p className={cn(
+                                'text-xs font-bold uppercase tracking-wider leading-snug',
+                                !n.read ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                              )}>
+                                {n.title}
+                              </p>
+                              <p className={cn(
+                                'text-sm leading-snug mt-0.5 truncate group-hover:whitespace-normal group-hover:overflow-visible',
+                                !n.read ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                              )}
+                              title={n.message}
+                              >
                                 {n.message}
                               </p>
-                              <p className="text-[10px] text-[var(--text-muted)] mt-1.5 uppercase tracking-widest">{formatNotifTime(n.createdAt)}</p>
+                              <p className="text-[10px] text-[var(--text-muted)] mt-1.5 uppercase tracking-widest">
+                                {formatNotifTime(n.createdAt)}
+                              </p>
                             </div>
-                            {!n.read && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0 mt-2 animate-pulse" />
-                            )}
                           </button>
                         ))
                       )}

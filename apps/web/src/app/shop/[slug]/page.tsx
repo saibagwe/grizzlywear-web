@@ -95,34 +95,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       .slice(0, 4);
   }, [product, allProducts]);
 
-  const currentStock = useMemo(() => {
-    if (!product) return 0;
-    if (typeof product.stock === 'object' && product.stock !== null) {
-      return selectedSize ? (product.stock[selectedSize] || 0) : product.totalStock;
-    }
-    return Number(product.stock || 0);
-  }, [product, selectedSize]);
 
-  // Overall product stock for all sizes
-  const allSizesOOS = useMemo(() => {
-    if (!product) return false;
-    if (typeof product.stock === 'object' && product.stock !== null) {
-      return Object.values(product.stock as Record<string, number>).every(v => (v || 0) === 0);
-    }
-    return Number(product.stock || 0) === 0;
-  }, [product]);
-
-  const isLowStock = currentStock > 0 && currentStock <= 10;
-  const isOutOfStock = selectedSize ? currentStock === 0 : allSizesOOS;
-
-  // Ensure quantity does not exceed current stock when size changes
-  useEffect(() => {
-    if (quantity > currentStock && currentStock > 0) {
-      setQuantity(currentStock);
-    } else if (currentStock === 0) {
-      setQuantity(1); // Reset when OOS
-    }
-  }, [currentStock, quantity]);
 
   // Handlers
   const handleAddToCart = () => {
@@ -333,16 +306,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               )}
             </div>
             
-            {allSizesOOS && (
-              <div className="mb-6">
-                <span className="inline-block bg-red-100 text-red-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Out of Stock</span>
-              </div>
-            )}
-            {selectedSize && isLowStock && !allSizesOOS && (
-              <div className="mb-6">
-                <span className="inline-block bg-orange-100 text-orange-800 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-sm">Only {currentStock} Left in {selectedSize}!</span>
-              </div>
-            )}
+
 
             <div className="mb-10 text-sm leading-relaxed text-gray-600">
               <p>{product.description}</p>
@@ -361,36 +325,18 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                   {product.sizes.map((size) => {
-                    const sizeStock = typeof product.stock === 'object' && product.stock !== null
-                      ? (product.stock[size] || 0)
-                      : Number(product.stock || 0);
-                    const isSizeOOS = sizeStock === 0;
-                    const isSizeLow = sizeStock > 0 && sizeStock <= 10;
                     return (
                       <button
                         key={size}
-                        onClick={() => { if (!isSizeOOS) { setSelectedSize(size); setSizeError(false); } }}
-                        disabled={isSizeOOS}
+                        onClick={() => { setSelectedSize(size); setSizeError(false); }}
                         className={cn(
                           "relative h-14 border text-xs font-bold tracking-widest transition-all",
-                          isSizeOOS
-                            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
-                            : selectedSize === size
-                              ? "border-black bg-black text-white"
-                              : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
+                          selectedSize === size
+                            ? "border-black bg-black text-white"
+                            : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
                         )}
                       >
                         {size}
-                        {isSizeOOS && (
-                          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[7px] font-bold uppercase px-1.5 py-0.5 rounded-sm leading-none tracking-wider">
-                            OOS
-                          </span>
-                        )}
-                        {isSizeLow && !isSizeOOS && (
-                          <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[7px] font-bold uppercase px-1.5 py-0.5 rounded-sm leading-none tracking-wider">
-                            {sizeStock} left
-                          </span>
-                        )}
                       </button>
                     );
                   })}
@@ -402,16 +348,15 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             {/* Add to Cart */}
             <div className="flex flex-col sm:flex-row gap-4 mb-14">
               <div className="h-14 border border-black flex items-center justify-between px-6 sm:w-1/3">
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center" disabled={isOutOfStock}>-</button>
-                <span className="text-sm font-medium w-8 text-center">{isOutOfStock ? 0 : quantity}</span>
-                <button onClick={() => setQuantity(Math.min(currentStock, quantity + 1))} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center" disabled={isOutOfStock || quantity >= currentStock}>+</button>
+                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">-</button>
+                <span className="text-sm font-medium w-8 text-center">{quantity}</span>
+                <button onClick={() => setQuantity(quantity + 1)} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">+</button>
               </div>
               <button
                 onClick={handleAddToCart}
-                disabled={isOutOfStock}
-                className="h-14 flex-1 bg-black text-white text-xs uppercase tracking-[0.2em] font-bold hover:bg-gray-800 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-14 flex-1 bg-black text-white text-xs uppercase tracking-[0.2em] font-bold hover:bg-gray-800 transition-colors active:scale-[0.98]"
               >
-                {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                Add to Cart
               </button>
             </div>
 
