@@ -322,7 +322,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Revenue Stat Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -552,7 +552,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Order Status Breakdown Cards ── */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Pending', count: stats.pendingCount, color: 'text-amber-600', bg: 'bg-amber-500/10', borderColor: 'border-amber-200', icon: Clock },
           { label: 'Confirmed', count: stats.confirmedCount, color: 'text-blue-600', bg: 'bg-blue-500/10', borderColor: 'border-blue-200', icon: CheckCircle2 },

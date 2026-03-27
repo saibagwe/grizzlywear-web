@@ -22,6 +22,8 @@ import {
   CheckCheck,
   Trash2,
   Warehouse,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
@@ -111,7 +113,9 @@ export default function AdminLayout({
 
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [themeLoaded, setThemeLoaded] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Notification bell state
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
@@ -127,12 +131,23 @@ export default function AdminLayout({
   const [isClearing, setIsClearing] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Initial Responsive State
+  // Initialize Responsive State and Persistence
   useEffect(() => {
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false);
+    setMounted(true);
+    const saved = localStorage.getItem('adminSidebarExpanded');
+    if (saved !== null) {
+      setIsSidebarExpanded(saved === 'true');
+    } else {
+      // Default to open on desktop
+      setIsSidebarExpanded(window.innerWidth >= 1024);
     }
   }, []);
+
+  const toggleDesktopSidebar = () => {
+    const newState = !isSidebarExpanded;
+    setIsSidebarExpanded(newState);
+    localStorage.setItem('adminSidebarExpanded', String(newState));
+  };
 
   // Theme Persistence
   useEffect(() => {
@@ -263,19 +278,19 @@ export default function AdminLayout({
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1 -ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              aria-label="Toggle Sidebar"
+              onClick={() => setIsMobileOpen(!isMobileOpen)}
+              className="lg:hidden p-2 -ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              aria-label="Toggle Mobile Menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6" />
             </button>
             <Link
               href="/admin/dashboard"
-              className="font-bold text-sm tracking-[0.2em] uppercase hidden sm:block"
+              className="font-bold text-sm tracking-[0.2em] uppercase"
             >
               GRIZZLYWEAR
             </Link>
-            <span className="text-[10px] tracking-wider uppercase bg-black text-white px-2 py-0.5 rounded">
+            <span className="hidden xs:inline-block text-[10px] tracking-wider uppercase bg-black text-white px-2 py-0.5 rounded ml-2">
               Admin
             </span>
           </div>
@@ -479,70 +494,98 @@ export default function AdminLayout({
         </div>
       </header>
 
-      <div className="flex pt-14">
-        {/* Mobile Overlay */}
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 top-14 bg-black/50 z-30 lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
+      <div className="flex pt-14 min-h-screen">
+        {/* Backdrop (Tablet/Mobile) */}
+        <div 
+          className={cn(
+            "fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300",
+            isMobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          )}
+          onClick={() => setIsMobileOpen(false)}
+        />
 
         {/* Sidebar */}
         <aside 
           className={cn(
-            "fixed left-0 top-14 bottom-0 bg-[var(--bg-card)] border-r border-[var(--border)] overflow-y-auto transition-all z-40 duration-300 group overflow-x-hidden",
-            isSidebarOpen ? "w-56 translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-16"
+            // Base styles
+            "fixed left-0 top-0 bottom-0 bg-[var(--bg-card)] border-r border-[var(--border)] overflow-y-auto z-50 transition-all duration-300",
+            // Desktop behavior
+            "lg:top-14 lg:translate-x-0 lg:z-40",
+            isSidebarExpanded ? "lg:w-60" : "lg:w-16",
+            // Tablet/Mobile behavior
+            "w-[280px] md:w-[320px] lg:w-auto", // Mobile/Tablet specific width
+            isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
           )}
         >
-          <nav className="py-4 px-2 sm:px-3">
-            <ul className="space-y-1">
+          {/* Desktop Toggle Button */}
+          <button
+            onClick={toggleDesktopSidebar}
+            className="hidden lg:flex absolute right-0 top-2 w-6 h-6 items-center justify-center bg-[var(--bg-card)] border border-[var(--border)] border-r-0 rounded-l-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors z-50"
+          >
+            {isSidebarExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          </button>
+
+          <nav className="py-6 px-3">
+            <div className="flex items-center justify-between mb-8 px-2 lg:hidden">
+              <span className="font-bold text-xs tracking-widest uppercase">Navigation</span>
+              <button 
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <ul className="space-y-1.5">
               {adminNavItems.map((item) => {
                 const isActive = pathname?.startsWith(item.href);
+                const showExpanded = isSidebarExpanded || !mounted; 
+                
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      title={!isSidebarOpen ? item.label : undefined}
-                      onClick={() => {
-                        if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                      }}
+                      title={!isSidebarExpanded ? item.label : undefined}
+                      onClick={() => setIsMobileOpen(false)}
                       className={cn(
-                        'flex items-center rounded-lg text-sm transition-colors overflow-hidden',
-                        isSidebarOpen ? 'px-3 py-2.5 justify-between' : 'px-0 py-2.5 justify-center',
+                        'flex items-center rounded-xl text-sm transition-all duration-300 group',
+                        isSidebarExpanded ? 'px-4 py-3' : 'px-0 py-3 justify-center',
                         isActive
-                          ? 'bg-[var(--text-primary)] text-[var(--bg-card)]'
+                          ? 'bg-[var(--text-primary)] text-[var(--bg-card)] shadow-lg'
                           : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                       )}
                     >
-                      <div className="flex items-center">
-                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <item.icon className={cn(
+                        "w-5 h-5 flex-shrink-0 transition-transform duration-300",
+                        !isSidebarExpanded && "group-hover:scale-110"
+                      )} />
+                      
+                      <span className={cn(
+                        "whitespace-nowrap font-medium transition-all duration-300",
+                        isSidebarExpanded ? "ml-3 opacity-100" : "w-0 opacity-0 overflow-hidden ml-0"
+                      )}>
+                        {item.label}
+                      </span>
+
+                      {(item.showBadge && pendingCount > 0) && (
                         <span className={cn(
-                          "whitespace-nowrap transition-all duration-300 font-medium",
-                          isSidebarOpen ? "w-auto opacity-100 ml-3" : "w-0 opacity-0 ml-0 inline-block h-5"
-                        )}>
-                          {item.label}
-                        </span>
-                      </div>
-                      {item.showBadge && pendingCount > 0 && (
-                        <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
+                          'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
                           isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-orange-500 text-white',
-                          !isSidebarOpen && "hidden"
+                          !isSidebarExpanded && "absolute top-2 right-2 w-2 h-2 p-0 text-[0px] overflow-hidden"
                         )}>
                           {pendingCount}
                         </span>
                       )}
-                      {(item as any).showTicketBadge && openTicketCount > 0 && (
+
+                      {((item as any).showTicketBadge && openTicketCount > 0) && (
                         <span className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center transition-opacity duration-200',
+                          'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
                           isActive ? 'bg-[var(--bg-card)] text-[var(--text-primary)]' : 'bg-green-500 text-white',
-                          !isSidebarOpen && "hidden"
+                          !isSidebarExpanded && "absolute top-2 right-2 w-2 h-2 p-0 text-[0px] overflow-hidden"
                         )}>
                           {openTicketCount}
                         </span>
                       )}
-
                     </Link>
                   </li>
                 );
@@ -552,11 +595,14 @@ export default function AdminLayout({
         </aside>
 
         {/* Main content */}
-        <main className={cn(
-          "flex-1 min-h-[calc(100vh-3.5rem)] transition-all duration-300 w-full overflow-hidden",
-          isSidebarOpen ? "lg:ml-56 md:ml-56" : "lg:ml-16 ml-0"
-        )}>
-          <div className="p-4 sm:p-6 lg:p-8 w-full mx-auto max-w-none 2xl:max-w-screen-2xl">
+        <main 
+          className={cn(
+            "flex-1 transition-all duration-300 min-h-[calc(100vh-3.5rem)]",
+            mounted && isSidebarExpanded ? "lg:ml-60" : "lg:ml-16",
+            "ml-0"
+          )}
+        >
+          <div className="p-4 sm:p-6 lg:p-10 w-full mx-auto max-w-none 2xl:max-w-[1600px] animate-in fade-in duration-500">
             {children}
           </div>
         </main>

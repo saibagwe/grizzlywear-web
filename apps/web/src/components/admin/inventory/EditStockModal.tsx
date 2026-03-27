@@ -127,12 +127,12 @@ export default function EditStockModal({
   const totalDiff = totalAfter - totalBefore;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in"
         onClick={onClose}
       />
-      <div className="bg-[var(--bg-card)] rounded-2xl w-full max-w-lg relative z-10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+      <div className="bg-[var(--bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg relative z-10 shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 h-[85vh] sm:h-auto sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-card)] z-10">
           <div>

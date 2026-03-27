@@ -499,7 +499,7 @@ export default function RedesignedAnalyticsPage() {
       </div>
 
       {/* ── SUMMARY STAT CARDS ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard 
           label="Total Revenue" 
           value={formatCurrency(stats.revenue.val)} 
@@ -554,7 +554,7 @@ export default function RedesignedAnalyticsPage() {
       </ChartCard>
 
       {/* ── ORDER STATISTICS & BREAKDOWN ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ChartCard title="Order Statistics" subtitle="Daily volume comparison by status" periodLabel={periodLabel} loading={loading} isEmpty={orderStatsData.length === 0}>
            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={orderStatsData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
@@ -605,7 +605,7 @@ export default function RedesignedAnalyticsPage() {
       </div>
 
       {/* ── TOP PRODUCTS & PAYMENT METHODS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ChartCard title="Top Selling Products" subtitle="By units sold — delivered orders only" periodLabel={periodLabel} loading={loading} isEmpty={productPerformance.length === 0}>
           <div className="flex flex-col h-full">
             <div className="flex-1 min-h-0">

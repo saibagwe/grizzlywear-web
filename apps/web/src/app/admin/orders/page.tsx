@@ -301,7 +301,7 @@ export default function AdminOrdersPage() {
   }, [allOrders]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 pt-4 px-1 sm:px-0">
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
@@ -446,7 +446,7 @@ export default function AdminOrdersPage() {
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-                <th className="px-6 py-5">Order ID</th>
+                <th className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg)]">Order ID</th>
                 <th className="px-6 py-5">Customer</th>
                 <th className="px-6 py-5">Date & Time</th>
                 <th className="px-6 py-5">Items</th>
@@ -476,7 +476,7 @@ export default function AdminOrdersPage() {
                   const isUpdating = updatingId === order.id;
                   return (
                     <tr key={order.id} className="hover:bg-[var(--bg)]/60 transition-colors group">
-                      <td className="px-6 py-5" data-label="Order ID">
+                      <td className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg-card)] group-hover:bg-[var(--bg)]/60 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] md:shadow-none" data-label="Order ID">
                         <div className="flex items-center justify-end md:justify-start gap-2">
                           <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{order.orderId}</span>
                           <button 

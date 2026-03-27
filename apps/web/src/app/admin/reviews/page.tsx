@@ -97,7 +97,7 @@ export default function AdminReviewsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 pt-4 px-1 sm:px-0">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ export default function AdminReviewsPage() {
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-                <th className="px-6 py-5">Product & Customer</th>
+                <th className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg)]">Product & Customer</th>
                 <th className="px-6 py-5">Rating</th>
                 <th className="px-6 py-5 w-1/3">Review</th>
                 <th className="px-6 py-5">Status</th>
@@ -173,8 +173,8 @@ export default function AdminReviewsPage() {
                 </tr>
               ) : (
                 filteredReviews.map(review => (
-                  <tr key={review.id} className="hover:bg-[var(--bg)]/60 transition-colors">
-                    <td className="px-6 py-5">
+                  <tr key={review.id} className="hover:bg-[var(--bg)]/60 transition-colors group">
+                    <td className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg-card)] group-hover:bg-[var(--bg)]/60 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] md:shadow-none">
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-[var(--text-primary)]">{review.productName || 'Product'}</span>
                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -258,9 +258,9 @@ export default function AdminReviewsPage() {
 
       {/* Review Detail Modal */}
       {viewReview && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewReview(null)} />
-          <div className="bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden rounded-xl shadow-2xl relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden rounded-t-2xl sm:rounded-xl shadow-2xl relative z-10 w-full sm:max-w-2xl h-[90vh] sm:h-auto sm:max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
             <div className="p-6 border-b border-[var(--border)] flex justify-between items-center sticky top-0 bg-[var(--bg-card)] z-20">
               <h3 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">Review Details</h3>
               <button onClick={() => setViewReview(null)} className="p-2 hover:bg-[var(--bg)] rounded-full transition-colors"><X size={20} /></button>
@@ -318,9 +318,9 @@ export default function AdminReviewsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)} />
-          <div className="bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden rounded-xl shadow-2xl relative z-10 w-full max-w-sm">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] overflow-hidden rounded-t-2xl sm:rounded-xl shadow-2xl relative z-10 w-full sm:max-w-sm animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4">
                 <AlertCircle size={24} />

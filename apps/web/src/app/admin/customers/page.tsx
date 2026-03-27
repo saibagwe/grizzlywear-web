@@ -115,7 +115,7 @@ export default function AdminCustomersPage() {
   const totalSpentAll = useMemo(() => orders.reduce((acc, o) => acc + o.total, 0), [orders]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 pt-4 px-1 sm:px-0">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
@@ -179,7 +179,7 @@ export default function AdminCustomersPage() {
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-                <th className="px-6 py-5">Customer Instance</th>
+                <th className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg)]">Customer Instance</th>
                 <th className="px-6 py-5">Engagement</th>
                 <th className="px-6 py-5 text-center">Orders</th>
                 <th className="px-6 py-5 text-right">Lifetime Spent</th>
@@ -201,7 +201,7 @@ export default function AdminCustomersPage() {
                ) : (
                 filteredUsers.map(user => (
                   <tr key={user.uid} className="hover:bg-[var(--bg)]/60 transition-colors group">
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 sticky left-0 z-10 bg-[var(--bg-card)] group-hover:bg-[var(--bg)]/60 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] md:shadow-none">
                       <div className="flex items-center gap-4">
                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border border-white shadow-sm flex items-center justify-center text-[var(--text-primary)] font-bold text-xs uppercase shadow-inner">
                             {user.fullName.charAt(0) || <User size={14} />}

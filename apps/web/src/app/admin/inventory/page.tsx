@@ -269,7 +269,7 @@ export default function AdminInventoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] pb-12 -mt-8 -mx-4 sm:-mx-8 px-4 sm:px-8 pt-8">
+    <div className="min-h-screen bg-[var(--bg)] pb-12 pt-4 px-1 sm:px-0">
       {/* ── Edit Stock Modal ── */}
       {editModalProduct && (
         <EditStockModal
@@ -343,26 +343,37 @@ export default function AdminInventoryPage() {
           </div>
 
           {/* Bulk Edit Toggle */}
-          <button
-            onClick={handleBulkEditToggle}
-            id="bulk-edit-toggle-btn"
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm',
-              bulkEditMode
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-black text-white hover:bg-gray-800'
-            )}
-          >
-            {bulkEditMode ? (
-              <>
-                <X size={14} /> Cancel Bulk Edit
-              </>
-            ) : (
-              <>
-                <Layers size={14} /> Bulk Edit
-              </>
-            )}
-          </button>
+          <div className="hidden md:block">
+            <button
+              onClick={handleBulkEditToggle}
+              id="bulk-edit-toggle-btn"
+              className={cn(
+                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm',
+                bulkEditMode
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-black text-white hover:bg-gray-800'
+              )}
+            >
+              {bulkEditMode ? (
+                <>
+                  <X size={14} /> Cancel Bulk Edit
+                </>
+              ) : (
+                <>
+                  <Layers size={14} /> Bulk Edit
+                </>
+              )}
+            </button>
+          </div>
+          <div className="md:hidden">
+            <button
+              disabled
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-400 rounded-xl text-[10px] font-bold uppercase tracking-widest cursor-not-allowed border border-gray-200"
+              title="Use desktop for bulk editing"
+            >
+              <Layers size={14} /> Bulk Edit (Desktop Only)
+            </button>
+          </div>
 
           {/* Live indicator */}
           <div className="hidden sm:flex items-center gap-2 bg-[var(--bg-card)] px-3 py-2 rounded-full shadow-sm border border-[var(--border)]">
@@ -468,7 +479,7 @@ export default function AdminInventoryPage() {
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-[var(--bg)] border-b border-[var(--border)] text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-                <th className="px-5 py-5">Product</th>
+                <th className="px-5 py-5 sticky left-0 z-10 bg-[var(--bg)]">Product</th>
                 <th className="px-5 py-5">Total Stock</th>
                 <th className="px-5 py-5">Size Breakdown</th>
                 <th className="px-5 py-5">Sales Count</th>
@@ -509,7 +520,7 @@ export default function AdminInventoryPage() {
                         )}
                       >
                         {/* Product */}
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 sticky left-0 z-10 bg-[var(--bg-card)] group-hover:bg-[var(--bg)]/60 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] md:shadow-none">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-14 relative bg-[var(--bg)] rounded border border-[var(--border)] overflow-hidden flex-shrink-0">
                               {product.images[0] ? (
