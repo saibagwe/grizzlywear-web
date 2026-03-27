@@ -21,6 +21,7 @@ import {
   Bell,
   CheckCheck,
   Trash2,
+  Warehouse,
 } from 'lucide-react';
 import { subscribeToAllOrders } from '@/lib/firestore/orderService';
 import { subscribeToAllTickets } from '@/lib/firestore/ticketService';
@@ -39,6 +40,7 @@ import {
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/inventory', label: 'Inventory', icon: Warehouse },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, showBadge: true },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
