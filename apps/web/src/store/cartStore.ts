@@ -10,6 +10,7 @@ export type CartItem = {
 
 import { getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
 
 interface CartState {
   items: CartItem[];
@@ -45,20 +46,36 @@ export const useCartStore = create<CartState>()(
           const productData = productSnap.data();
           const currentStock = productData.stock?.[size] ?? 0;
 
-          // Check stock availability
+          // If stock is 0 — block completely
           if (currentStock === 0) {
-            throw new Error(`Sorry, this item in size ${size} is currently unavailable`);
+            toast.error(`Sorry, this item in size ${size} is currently unavailable`);
+            return;
           }
 
-          // Check if item already in cart to validate total quantity
+          // Check if item already in cart
           const existingItem = get().items.find(
             (item) => item.product.id === product.id && item.size === size
           );
-          const totalRequested = (existingItem?.quantity || 0) + quantity;
+          const currentInCart = existingItem?.quantity || 0;
+          const totalRequested = currentInCart + quantity;
 
-          if (currentStock < totalRequested) {
-            throw new Error(`Only ${currentStock} units available in size ${size}`);
+          let finalInCart = totalRequested;
+          let stockWarning = null;
+
+          if (totalRequested > currentStock) {
+            finalInCart = currentStock; // cap at max available
+            if (currentInCart >= currentStock) {
+              stockWarning = `You already have the maximum available stock (${currentStock}) in your bag.`;
+            } else {
+              stockWarning = `Only ${currentStock} units available in size ${size} — quantity adjusted to ${currentStock}`;
+            }
           }
+
+          if (stockWarning) {
+            toast.warning(stockWarning);
+          }
+
+          if (finalInCart === currentInCart) return; // Nothing changed
 
           set((state) => {
             const existingItemIndex = state.items.findIndex(
@@ -67,9 +84,9 @@ export const useCartStore = create<CartState>()(
 
             const newItems = [...state.items];
             if (existingItemIndex >= 0) {
-              newItems[existingItemIndex].quantity += quantity;
+              newItems[existingItemIndex].quantity = finalInCart;
             } else {
-              newItems.push({ product, size, quantity });
+              newItems.push({ product, size, quantity: finalInCart });
             }
 
             const totalItems = newItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -77,9 +94,13 @@ export const useCartStore = create<CartState>()(
 
             return { items: newItems, totalItems, subtotal };
           });
+          
+          if (!stockWarning) {
+            toast.success('Added to bag');
+          }
         } catch (error: any) {
           console.error('Add to cart error:', error.message);
-          throw error;
+          toast.error(error.message);
         }
       },
 
@@ -111,14 +132,16 @@ export const useCartStore = create<CartState>()(
           const productData = productSnap.data();
           const currentStock = productData.stock?.[size] ?? 0;
 
+          let finalQuantity = quantity;
           if (currentStock < quantity) {
-            throw new Error(`Only ${currentStock} units available in size ${size}`);
+            finalQuantity = currentStock;
+            toast.warning(`Only ${currentStock} units available in size ${size} — quantity adjusted to ${currentStock}`);
           }
 
           set((state) => {
             const newItems = state.items.map((item) => {
               if (item.product.id === productId && item.size === size) {
-                return { ...item, quantity };
+                return { ...item, quantity: finalQuantity };
               }
               return item;
             });
@@ -130,7 +153,7 @@ export const useCartStore = create<CartState>()(
           });
         } catch (error: any) {
           console.error('Update quantity error:', error.message);
-          throw error;
+          toast.error(error.message);
         }
       },
 

@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2, CheckCircle } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Heart, Star, ChevronLeft, ChevronRight, Share2, X, Loader2, CheckCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { subscribeToProducts, getProductBySlug, type FirestoreProduct } from '@/lib/firestore/productService';
@@ -40,6 +42,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [reviewPage, setReviewPage] = useState(1);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [sizeError, setSizeError] = useState(false);
+  const [sizeStock, setSizeStock] = useState<Record<string, number>>({});
 
   // Review Form State
   const [reviewRating, setReviewRating] = useState(5);
@@ -60,6 +63,28 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       setLoading(false);
     });
   }, [params.slug]);
+
+  // Real-time stock monitor
+  useEffect(() => {
+    if (!product?.id) return;
+
+    const productRef = doc(db, 'products', product.id);
+    const unsub = onSnapshot(productRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const stock = data.stock || {};
+        setSizeStock(stock);
+
+        // Auto-deselect if current size goes out of stock
+        if (selectedSize && (stock[selectedSize] ?? 0) === 0) {
+          setSelectedSize(null);
+          toast.warning(`Size ${selectedSize} is now out of stock. Please select another size.`);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [product?.id, selectedSize]);
 
   // Subscribe to all products for "You Might Also Like"
   useEffect(() => {
@@ -94,6 +119,11 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       .filter(p => p.category === product.category && p.id !== product.id)
       .slice(0, 4);
   }, [product, allProducts]);
+
+  const allOutOfStock = useMemo(() => {
+    if (!product || !product.sizes || product.sizes.length === 0) return false;
+    return product.sizes.every(size => (sizeStock[size] ?? 0) === 0);
+  }, [product, sizeStock]);
 
 
 
@@ -325,38 +355,61 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                   {product.sizes.map((size) => {
+                    const isAvailable = (sizeStock[size] ?? 0) > 0;
                     return (
                       <button
                         key={size}
+                        disabled={!isAvailable}
                         onClick={() => { setSelectedSize(size); setSizeError(false); }}
+                        title={!isAvailable ? `Not available in size ${size}` : ''}
                         className={cn(
-                          "relative h-14 border text-xs font-bold tracking-widest transition-all",
+                          "relative h-14 border text-xs font-bold tracking-widest transition-all overflow-hidden flex flex-col items-center justify-center",
                           selectedSize === size
                             ? "border-black bg-black text-white"
-                            : "border-gray-200 hover:border-black text-gray-800 focus:outline-none"
+                            : isAvailable 
+                              ? "border-gray-200 hover:border-black text-gray-800"
+                              : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
                         )}
                       >
-                        {size}
+                        <span className={cn(isAvailable ? "" : "line-through")}>{size}</span>
+                        {!isAvailable && (
+                          <span className="text-[9px] font-bold text-red-400 mt-0.5">N/A</span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
-                {sizeError && <p className="text-xs text-red-500 mt-3 font-medium flex items-center gap-1.5"><X size={14} /> Please select a size to continue.</p>}
+                {sizeError && !allOutOfStock && <p className="text-xs text-red-500 mt-3 font-medium flex items-center gap-1.5"><X size={14} /> Please select a size to continue.</p>}
+                
+                {allOutOfStock && (
+                  <div className="mt-6 flex items-center gap-3 bg-red-50 border border-red-100 p-4">
+                    <Info className="text-red-500" size={18} />
+                    <p className="text-xs font-bold uppercase tracking-widest text-red-900">This product is currently out of stock in all sizes</p>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Add to Cart */}
             <div className="flex flex-col sm:flex-row gap-4 mb-14">
-              <div className="h-14 border border-black flex items-center justify-between px-6 sm:w-1/3">
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">-</button>
-                <span className="text-sm font-medium w-8 text-center">{quantity}</span>
-                <button onClick={() => setQuantity(quantity + 1)} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">+</button>
-              </div>
+              {!allOutOfStock && (
+                <div className="h-14 border border-black flex items-center justify-between px-6 sm:w-1/3">
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">-</button>
+                  <span className="text-sm font-medium w-8 text-center">{quantity}</span>
+                  <button onClick={() => setQuantity(quantity + 1)} className="text-xl font-light hover:text-gray-500 transition-colors w-8 text-center">+</button>
+                </div>
+              )}
               <button
+                disabled={allOutOfStock}
                 onClick={handleAddToCart}
-                className="h-14 flex-1 bg-black text-white text-xs uppercase tracking-[0.2em] font-bold hover:bg-gray-800 transition-colors active:scale-[0.98]"
+                className={cn(
+                  "h-14 flex-1 text-xs uppercase tracking-[0.2em] font-bold transition-colors active:scale-[0.98]",
+                  allOutOfStock 
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                    : "bg-black text-white hover:bg-gray-800"
+                )}
               >
-                Add to Cart
+                {allOutOfStock ? 'Currently Out of Stock' : 'Add to Cart'}
               </button>
             </div>
 

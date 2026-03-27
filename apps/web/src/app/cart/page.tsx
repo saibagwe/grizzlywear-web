@@ -7,6 +7,10 @@ import { Minus, Plus, Trash2, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCheckoutStore } from '@/store/checkoutStore';
 import { useCartStore } from '@/store/cartStore';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 const DISCOUNT_CODES: Record<string, { type: 'percent' | 'flat'; value: number }> = {
   'GRIZZ10': { type: 'percent', value: 10 },
@@ -17,6 +21,7 @@ const DISCOUNT_CODES: Record<string, { type: 'percent' | 'flat'; value: number }
 export default function CartPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [updatingItems, setUpdatingItems] = useState<Record<string, boolean>>({});
   const { items, removeItem, updateQuantity, subtotal } = useCartStore();
   const { setCartSnapshot, setPricing } = useCheckoutStore();
 
@@ -93,6 +98,32 @@ export default function CartPage() {
     router.push('/checkout');
   };
 
+  const handleIncrement = async (productId: string, size: string, currentQty: number) => {
+    const key = `${productId}-${size}`;
+    setUpdatingItems(prev => ({ ...prev, [key]: true }));
+    
+    try {
+      const productSnap = await getDoc(doc(db, 'products', productId));
+      if (productSnap.exists()) {
+        const productData = productSnap.data();
+        const currentStock = productData.stock?.[size] ?? 0;
+        
+        if (currentQty >= currentStock) {
+          toast.warning(`Only ${currentStock} units available in size ${size}`);
+          setUpdatingItems(prev => ({ ...prev, [key]: false }));
+          return;
+        }
+        
+        await updateQuantity(productId, size, currentQty + 1);
+      }
+    } catch (error) {
+      console.error('Increment error:', error);
+      toast.error('Failed to update quantity');
+    } finally {
+      setUpdatingItems(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
   if (!mounted) return null; // Prevent hydration errors
 
   return (
@@ -162,10 +193,15 @@ export default function CartPage() {
                         </button>
                         <span className="w-8 text-center text-xs font-medium">{item.quantity}</span>
                         <button 
-                          onClick={() => updateQuantity(item.product.id, item.size, item.quantity + 1)}
-                          className="px-3 py-2 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                          onClick={() => handleIncrement(item.product.id, item.size, item.quantity)}
+                          disabled={updatingItems[`${item.product.id}-${item.size}`]}
+                          className="px-3 py-2 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50"
                         >
-                          <Plus size={14} />
+                          {updatingItems[`${item.product.id}-${item.size}`] ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Plus size={14} />
+                          )}
                         </button>
                       </div>
                     </div>
