@@ -14,11 +14,12 @@ import { toast } from 'sonner';
 import {
   createRazorpayOrder,
   openRazorpayCheckout,
-  saveOrderToFirestore,
-  type OrderPayload,
   type DeliveryAddress,
 } from '@/lib/payment/razorpayService';
 import { getAddresses, addAddress, type FirestoreAddress } from '@/lib/firestore/userService';
+import { placeOrder } from '@/lib/firestore/orderService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type CheckoutStep = 'address' | 'shipping' | 'payment';
 
@@ -54,6 +55,64 @@ export default function CheckoutPage() {
   const [paymentPhase, setPaymentPhase] = useState<'idle' | 'connecting' | 'waking' | 'confirming'>('idle');
   const [criticalError, setCriticalError] = useState<{ message: string; paymentId?: string } | null>(null);
   const [saveToProfile, setSaveToProfile] = useState(true);
+  
+  // Real-time stock validation
+  const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
+  const [canOrder, setCanOrder] = useState(true);
+
+  // 1. Auth check & redirect
+  useEffect(() => {
+    if (mounted && !firebaseUser) {
+      toast.error('Please log in to continue to checkout');
+      const currentPath = window.location.pathname;
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+    }
+  }, [firebaseUser, mounted, router]);
+
+  // 2. Real-time stock validation
+  useEffect(() => {
+    if (checkoutStore.cartSnapshot.length === 0) return;
+
+    const unsubscribers = checkoutStore.cartSnapshot.map(item => {
+      const productRef = doc(db, 'products', item.productId);
+      
+      return onSnapshot(productRef, (snap) => {
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+        const stock = data.stock?.[item.size] ?? 0;
+        const key = item.productId + item.size;
+
+        if (stock === 0) {
+          setStockErrors(prev => ({
+            ...prev,
+            [key]: `${item.name} in size ${item.size} is out of stock`
+          }));
+          setCanOrder(false);
+        } else if (stock < item.quantity) {
+          setStockErrors(prev => ({
+            ...prev,
+            [key]: `Only ${stock} units available for ${item.name} in size ${item.size}`
+          }));
+          setCanOrder(false);
+        } else {
+          setStockErrors(prev => {
+            const updated = { ...prev };
+            delete updated[key];
+            return updated;
+          });
+          // Update canOrder in the next line based on the updated state
+        }
+      });
+    });
+
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [checkoutStore.cartSnapshot]);
+
+  // Update canOrder based on stockErrors
+  useEffect(() => {
+    setCanOrder(Object.keys(stockErrors).length === 0);
+  }, [stockErrors]);
 
   useEffect(() => {
     setMounted(true);
@@ -92,15 +151,16 @@ export default function CheckoutPage() {
 
   if (!mounted) return null;
 
-  const buildOrderPayload = (): OrderPayload => ({
-    cartItems: checkoutStore.cartSnapshot,
-    deliveryAddress: selectedAddressData,
-    subtotal: checkoutStore.subtotal,
-    shippingCharge: checkoutStore.shippingCharge,
-    discount: checkoutStore.discount,
-    total: checkoutStore.total,
-    discountCode: checkoutStore.discountCode,
-  });
+  const buildOrderItems = () => {
+    return checkoutStore.cartSnapshot.map(item => ({
+      productId: item.productId,
+      name: item.name,
+      image: item.imageUrl,
+      price: item.price,
+      quantity: item.quantity,
+      size: item.size
+    }));
+  };
 
   const generateEstimatedDelivery = () => {
     const d = new Date();
@@ -134,31 +194,55 @@ export default function CheckoutPage() {
   const handlePayment = async () => {
     if (!firebaseUser) {
       toast.error('You must be logged in to place an order.');
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
+    if (!canOrder) {
+      toast.error('Please resolve stock errors before placing your order.');
       return;
     }
 
     setIsProcessing(true);
 
-    const payload = buildOrderPayload();
+    const shippingAddr = {
+      name: selectedAddressData.name,
+      address: selectedAddressData.line1 + (selectedAddressData.line2 ? `, ${selectedAddressData.line2}` : ''),
+      city: selectedAddressData.city,
+      state: selectedAddressData.state,
+      pincode: selectedAddressData.pincode,
+      country: 'India',
+      phone: selectedAddressData.phone,
+    };
+
+    const userInfo = {
+      name: profile?.fullName || firebaseUser.displayName || '',
+      email: profile?.email || firebaseUser.email || '',
+      phone: profile?.phone || selectedAddressData.phone || '',
+    };
 
     if (paymentMethod === 'cod') {
       try {
         setPaymentPhase('confirming');
-        const orderId = await saveOrderToFirestore(
-          firebaseUser.uid,
-          payload,
-          {},
+        const { orderId } = await placeOrder(
+          buildOrderItems(),
+          shippingAddr,
           'cod',
-          {
-            name: profile?.fullName || firebaseUser.displayName || '',
-            email: profile?.email || firebaseUser.email || '',
-            phone: profile?.phone || '',
-          }
+          checkoutStore.total,
+          userInfo
         );
         finalizeOrder(orderId, 'cod', null);
       } catch (err: any) {
-        console.error('COD Save Error:', err);
-        toast.error(`Failed to create COD order: ${err.message || 'Unknown error'}`);
+        console.error('Order Error:', err);
+        if (err.message.includes('logged in')) {
+          toast.error('Please log in to place your order');
+        } else if (err.message.includes('Insufficient stock')) {
+          toast.error(err.message);
+        } else if (err.message.includes('not found')) {
+          toast.error('One or more items in your cart are no longer available');
+        } else {
+          toast.error('Failed to place order. Please try again.');
+        }
         setIsProcessing(false);
         setPaymentPhase('idle');
       }
@@ -169,7 +253,6 @@ export default function CheckoutPage() {
     setPaymentPhase('connecting');
     let razorpayOrder;
 
-    // Simulate "waking server" state if it takes > 5s
     const slowServerTimer = setTimeout(() => {
       setPaymentPhase('waking');
     }, 5000);
@@ -187,9 +270,9 @@ export default function CheckoutPage() {
 
     // Open Razorpay Checkout Modal
     const userDetails = {
-      name: profile?.fullName || firebaseUser.displayName || 'Customer',
-      email: profile?.email || firebaseUser.email || '',
-      phone: profile?.phone || '',
+      name: userInfo.name || 'Customer',
+      email: userInfo.email,
+      phone: userInfo.phone,
     };
 
     openRazorpayCheckout(
@@ -199,21 +282,16 @@ export default function CheckoutPage() {
         // SUCCESS HANDLER
         try {
           setPaymentPhase('confirming');
-          const orderId = await saveOrderToFirestore(
-            firebaseUser.uid,
-            payload,
-            response,
+          const { orderId } = await placeOrder(
+            buildOrderItems(),
+            shippingAddr,
             'razorpay',
-            {
-              name: profile?.fullName || firebaseUser.displayName || '',
-              email: profile?.email || firebaseUser.email || '',
-              phone: profile?.phone || '',
-            }
+            checkoutStore.total,
+            userInfo
           );
           finalizeOrder(orderId, 'razorpay', response.razorpay_payment_id);
         } catch (saveErr: any) {
           console.error('Razorpay Save Error:', saveErr);
-          // CRITICAL: Payment succeeded, but Firestore save failed
           setCriticalError({
             message: `Payment received but order confirmation failed: ${saveErr.message || 'Unknown'}. Please contact support@grizzlywear.in with your Payment ID.`,
             paymentId: response.razorpay_payment_id
@@ -223,7 +301,6 @@ export default function CheckoutPage() {
         }
       },
       () => {
-        // ON DISMISS HANDLER
         toast('Payment cancelled. Your cart is still saved.');
         setIsProcessing(false);
         setPaymentPhase('idle');
@@ -483,17 +560,18 @@ export default function CheckoutPage() {
                     </button>
                     <button 
                       onClick={handlePayment}
-                      disabled={isProcessing}
-                      className="w-2/3 bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      disabled={isProcessing || !canOrder}
+                      className="w-2/3 bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isProcessing ? (
                         <>
                           <Loader2 size={16} className="animate-spin" />
-                          {paymentPhase === 'connecting' ? 'Connecting to payment server...' : 
-                           paymentPhase === 'waking' ? 'Still connecting... (server waking up)' : 
-                           'Processing...'}
+                          {paymentPhase === 'connecting' ? 'Connecting...' : 
+                           paymentPhase === 'waking' ? 'Still connecting...' : 
+                           'Confirming Order...'}
                         </>
                       ) : (
+                        !canOrder ? 'STOCK UNAVAILABLE' : 
                         paymentMethod === 'razorpay' ? `PAY ₹${checkoutStore.total.toLocaleString('en-IN')} SECURELY →` : 'CONFIRM ORDER →'
                       )}
                     </button>
@@ -518,6 +596,11 @@ export default function CheckoutPage() {
                       <p className="text-xs font-medium uppercase tracking-widest line-clamp-1 mb-1">{item.name}</p>
                       <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Size: {item.size} | Qty: {item.quantity}</p>
                       <p className="text-sm font-medium">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                      {stockErrors[item.productId + item.size] && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1 uppercase tracking-tight">
+                          {stockErrors[item.productId + item.size]}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

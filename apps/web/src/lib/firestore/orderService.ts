@@ -17,7 +17,7 @@ import {
   type Unsubscribe,
   type DocumentData,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { createNotification } from '@/lib/firestore/notificationService';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -438,57 +438,206 @@ export async function updateOrderStatus(
   await updateDoc(doc(db, 'orders', id), modifications);
 }
 
+// ─── PLACE ORDER (WITH STOCK TRANSACTION) ─────────────────────────────────────
+
+export async function placeOrder(
+  cartItems: OrderItem[],
+  address: ShippingAddress,
+  paymentMethod: string,
+  totalAmount: number,
+  userInfo?: { name?: string; email?: string; phone?: string }
+): Promise<{ success: boolean; orderId: string }> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('You must be logged in to place an order');
+
+  const orderRef = doc(collection(db, 'orders'));
+  const humanOrderId = `GW-${Date.now().toString().slice(-8)}`;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Step 1 — Read all product stock inside transaction
+      const stockSnapshots = await Promise.all(
+        cartItems.map(item =>
+          transaction.get(doc(db, 'products', item.productId))
+        )
+      );
+
+      // Step 2 — Validate stock for every item
+      const stockUpdates = [];
+      for (let i = 0; i < cartItems.length; i++) {
+        const item = cartItems[i];
+        const productSnap = stockSnapshots[i];
+
+        if (!productSnap.exists()) {
+          throw new Error(`Product ${item.name} not found`);
+        }
+
+        const productData = productSnap.data();
+        const currentStock = productData.stock?.[item.size] ?? 0;
+
+        if (currentStock < item.quantity) {
+          throw new Error(
+            `Insufficient stock for ${item.name} in size ${item.size}. Only ${currentStock} available.`
+          );
+        }
+
+        // Calculate new stock
+        const newStock = {
+          ...productData.stock,
+          [item.size]: currentStock - item.quantity
+        };
+
+        // Calculate new stockStatus
+        const allValues = Object.values(newStock) as number[];
+        const stockStatus = allValues.every(v => v === 0)
+          ? 'out_of_stock'
+          : allValues.some(v => v > 0 && v <= 10)
+          ? 'low_stock'
+          : 'in_stock';
+
+        stockUpdates.push({
+          ref: doc(db, 'products', item.productId),
+          newStock,
+          stockStatus
+        });
+      }
+
+      // Step 3 — All checks passed, deduct stock for all items
+      for (const update of stockUpdates) {
+        transaction.update(update.ref, {
+          stock: update.newStock,
+          stockStatus: update.stockStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Step 4 — Create order document
+      transaction.set(orderRef, {
+        orderId: humanOrderId,
+        userId: user.uid,
+        userName: userInfo?.name || user.displayName || '',
+        userEmail: userInfo?.email || user.email || '',
+        customerName: userInfo?.name || user.displayName || '',
+        customerEmail: userInfo?.email || user.email || '',
+        customerPhone: userInfo?.phone || '',
+        items: cartItems.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price,
+          image: item.image,
+        })),
+        shippingAddress: address,
+        deliveryAddress: address, // Backward compatibility
+        paymentMethod,
+        total: totalAmount,
+        subtotal: totalAmount, // Simplified for now, will be overridden by caller if needed
+        status: 'pending',
+        paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    // Step 5 — Write admin notification after transaction succeeds
+    await addDoc(collection(db, 'notifications'), {
+      title: 'New Order Placed',
+      message: `${user.displayName || user.email || 'A user'} placed order #${humanOrderId} worth ₹${totalAmount}`,
+      category: 'orders',
+      type: 'order',
+      referenceId: orderRef.id,
+      referenceUrl: `/admin/orders/${orderRef.id}`,
+      read: false,
+      createdAt: serverTimestamp()
+    });
+
+    return { success: true, orderId: humanOrderId };
+
+  } catch (error: any) {
+    console.error('❌ Order placement failed:', error.message);
+    throw error;
+  }
+}
+
 // ─── CANCEL ORDER (USER) ──────────────────────────────────────────────────────
 
 export async function cancelOrder(id: string): Promise<void> {
-  await runTransaction(db, async (transaction) => {
-    // 1. Read the order document
-    const orderRef = doc(db, 'orders', id);
-    const orderSnap = await transaction.get(orderRef);
-    if (!orderSnap.exists()) throw new Error('Order not found');
-    const currentData = orderSnap.data();
-    const currentStatus = currentData.status === 'processing' ? 'confirmed' : (currentData.status as OrderStatus);
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not logged in');
 
-    if (currentStatus !== 'pending' && currentStatus !== 'confirmed') {
-      throw new Error('Order cannot be cancelled at this stage.');
+  const orderRef = doc(db, 'orders', id);
+
+  await runTransaction(db, async (transaction) => {
+    const orderSnap = await transaction.get(orderRef);
+
+    if (!orderSnap.exists()) throw new Error('Order not found');
+
+    const order = orderSnap.data();
+
+    if (order.userId !== user.uid) throw new Error('Unauthorized');
+
+    if (!['pending', 'confirmed'].includes(order.status)) {
+      throw new Error(`Cannot cancel order with status: ${order.status}`);
     }
 
-    // NOTE: Stock restoration is intentionally NOT done here on the client.
-    // Firestore rules only allow admins to write to the products collection,
-    // so writing to products inside a client-side transaction causes
-    // "Insufficient permissions" and rolls back the entire transaction
-    // (including the order status update). Stock restoration is handled
-    // server-side by the onOrderCancelled Cloud Function which runs with
-    // Firebase Admin privileges.
+    // Restore stock for each item
+    for (const item of order.items) {
+      const productRef = doc(db, 'products', item.productId);
+      const productSnap = await transaction.get(productRef);
 
-    // 2. Update order status to cancelled
-    const paymentMethod = currentData.paymentMethod ?? currentData.payment?.method ?? 'cod';
-    const newPaymentStatus = derivePaymentStatus('cancelled', paymentMethod, currentData.paymentStatus);
+      if (productSnap.exists()) {
+        const productData = productSnap.data();
+        const currentStock = productData.stock?.[item.size] ?? 0;
+        const newStock = {
+          ...productData.stock,
+          [item.size]: currentStock + item.quantity
+        };
 
+        const allValues = Object.values(newStock) as number[];
+        const stockStatus = allValues.every(v => v === 0)
+          ? 'out_of_stock'
+          : allValues.some(v => v > 0 && v <= 10)
+          ? 'low_stock'
+          : 'in_stock';
+
+        transaction.update(productRef, {
+          stock: newStock,
+          stockStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
+    }
+
+    // Determine payment status
+    let paymentStatus = 'cancelled';
+    const paymentMethod = order.paymentMethod ?? order.payment?.method ?? 'cod';
+    if (paymentMethod === 'online' && order.paymentStatus === 'paid') {
+      paymentStatus = 'refunded';
+    }
+
+    // Update order status
     transaction.update(orderRef, {
       status: 'cancelled',
-      paymentStatus: newPaymentStatus,
-      updatedAt: serverTimestamp(),
+      paymentStatus,
+      updatedAt: serverTimestamp()
     });
   });
 
-  // Fetch order data for notification (outside transaction for best-effort)
-  const snap = await getDoc(doc(db, 'orders', id));
-  const orderData = snap.exists() ? snap.data() : null;
-  const customerName = orderData?.customerName || 'A customer';
+  // Fetch human-readable ID for notification
+  const snap = await getDoc(orderRef);
+  const orderData = snap.data();
+  const humanOrderId = orderData?.orderId || id;
 
-  // Fire admin cancellation notification (best-effort)
-  createNotification({
-    type: 'cancellation',
-    category: 'orders',
+  // Write admin notification
+  await addDoc(collection(db, 'notifications'), {
     title: 'Order Cancelled',
-    message: `${customerName} cancelled order #${orderData?.orderId || id}`,
-    referenceId: orderData?.orderId || id,
+    message: `Order #${humanOrderId} was cancelled by the user`,
+    category: 'orders',
+    type: 'cancellation',
+    referenceId: id,
     referenceUrl: `/admin/orders/${id}`,
-    triggeredBy: {
-      userId: orderData?.userId || '',
-      userName: customerName,
-      userEmail: orderData?.customerEmail || '',
-    },
-  }).catch(() => { /* silently ignore */ });
+    read: false,
+    createdAt: serverTimestamp()
+  });
 }

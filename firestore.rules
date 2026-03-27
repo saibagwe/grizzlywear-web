@@ -19,9 +19,11 @@ service cloud.firestore {
     }
 
     // ─── PRODUCTS COLLECTION ───────────────────────────────────────────────────
+    // Products — public read, users can update stock during order flow
     match /products/{productId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow update: if isAuthenticated();
+      allow create, delete: if isAdmin();
     }
 
     // ─── INVENTORY COLLECTION ──────────────────────────────────────────────────
@@ -40,21 +42,17 @@ service cloud.firestore {
       match /addresses/{addressId} {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
-
-      match /orders/{orderId} {
-        allow read, create: if isAuthenticated() && isOwner(userId);
-        allow update, delete: if isAdmin();
-      }
     }
 
     // ─── ORDERS COLLECTION (top-level) ─────────────────────────────────────────
+    // Orders — user can create and read their own orders
     match /orders/{orderId} {
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      // Single-document read: owner or admin
-      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      // Collection query (list)
-      allow list: if isAuthenticated();
-      allow update: if isAdmin();
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null &&
+        (isAdmin() || (request.auth.uid == resource.data.userId && request.resource.data.status == 'cancelled'));
       allow delete: if isAdmin();
     }
 
@@ -71,36 +69,22 @@ service cloud.firestore {
     }
 
     // ─── NOTIFICATIONS COLLECTION ─────────────────────────────────────────────
+    // Notifications — only admin can read, but anyone can create
     match /notifications/{notificationId} {
-      // Any authenticated user can read notifications
-      allow read: if isAuthenticated();
-
-      // Authenticated users can create notifications (client-side triggers)
-      allow create: if isAuthenticated();
-
-      // Only allow updating the 'read' field
-      allow update: if isAuthenticated() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-
-      // Allow delete for "Clear all" functionality
-      allow delete: if isAuthenticated();
+      allow read: if request.auth != null && isAdmin();
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
     }
 
     // ─── REVIEWS COLLECTION ────────────────────────────────────────────────────
     match /reviews/{reviewId} {
-      // Anyone can read approved reviews. The author or admins can read any status.
       allow read: if resource.data.status == "approved" 
                   || isAdmin() 
                   || (isAuthenticated() && request.auth.uid == resource.data.userId);
-
-      // Only logged in users can create a review for themselves
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-
-      // User can update their own review if still pending. Admins can update any review.
       allow update: if isAdmin() 
                     || (isAuthenticated() && request.auth.uid == resource.data.userId && resource.data.status == "pending");
-
-      // Only admins and the author can delete
       allow delete: if isAdmin() 
                     || (isAuthenticated() && request.auth.uid == resource.data.userId);
     }
