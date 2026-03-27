@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
   AreaChart, Area,
 } from 'recharts';
@@ -16,8 +15,8 @@ import {
   TrendingUp,
   AlertCircle,
   Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
+  CreditCard,
+  Target,
   Package,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -32,7 +31,6 @@ interface OrderItem {
   name: string;
   price: number;
   quantity: number;
-  categoryId?: string;
   imageUrl?: string;
   productId?: string;
 }
@@ -43,6 +41,7 @@ interface Order {
   status: OrderStatus;
   createdAt: any;
   items: OrderItem[];
+  paymentMethod?: string;
 }
 
 interface UserDoc {
@@ -50,79 +49,77 @@ interface UserDoc {
   createdAt: any;
 }
 
-interface ProductDoc {
-  id: string;
-  name: string;
-  price: number;
-}
-
 // ─── COLORS ───────────────────────────────────────────────────────────────────
 
-const PALETTE = {
-  emerald: '#22C55E',
-  blue: '#3B82F6',
-  violet: '#8B5CF6',
-  amber: '#F59E0B',
-  red: '#EF4444',
-  teal: '#14B8A6',
-  indigo: '#6366F1',
-  pink: '#EC4899',
-  sky: '#0EA5E9',
-  orange: '#F97316',
+const COLORS = {
+  black: 'var(--text-primary)',
+  pending: '#F59E0B',
+  confirmed: '#3B82F6',
+  shipped: '#A855F7',
+  delivered: '#22C55E',
+  cancelled: '#EF4444',
+  muted: 'var(--text-muted)',
+  border: 'var(--border)',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: PALETTE.amber,
-  confirmed: PALETTE.blue,
-  shipped: PALETTE.violet,
-  delivered: PALETTE.emerald,
-  cancelled: PALETTE.red,
-};
+const CHART_COLORS = ['#3B82F6', '#22C55E', '#A855F7', '#F59E0B', '#EF4444', '#EC4899'];
 
-const CHART_BAR_COLORS = [PALETTE.emerald, PALETTE.blue, PALETTE.violet, PALETTE.amber, PALETTE.teal];
-
-// ─── SKELETON LOADERS ─────────────────────────────────────────────────────────
-
-function SkeletonLoader({ height = '300px' }: { height?: string }) {
-  return (
-    <div className="w-full bg-[var(--bg-hover)] animate-pulse rounded-lg" style={{ height }} />
-  );
-}
-
-function StatCardSkeleton() {
-  return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border)] p-5 rounded-xl flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-[var(--bg-hover)] animate-pulse" />
-        <div className="h-4 w-20 bg-[var(--bg-hover)] animate-pulse rounded" />
-      </div>
-      <div className="h-8 w-28 bg-[var(--bg-hover)] animate-pulse rounded mt-1" />
-    </div>
-  );
-}
-
-// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function getDateFromTimestamp(ts: any): Date {
   if (!ts) return new Date(0);
   return ts?.toDate ? ts.toDate() : new Date(ts);
 }
 
-type DateRange = '7d' | '30d' | '3m' | 'all';
+function formatCurrency(v: number) {
+  return `₹${v.toLocaleString('en-IN')}`;
+}
 
-// ─── CUSTOM TOOLTIPS ──────────────────────────────────────────────────────────
+// ─── CUSTOM COMPONENTS ────────────────────────────────────────────────────────
 
-function PremiumTooltip({ active, payload, label, prefix = '' }: any) {
+function StatCard({ label, value, subtitle, icon: Icon, color, bg }: any) {
+  return (
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] p-5 rounded-xl shadow-sm hover:shadow-md transition-all group">
+      <div className="flex items-center gap-3 mb-3">
+        <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110', bg)}>
+          <Icon size={18} className={color} />
+        </div>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{label}</h3>
+      </div>
+      <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums truncate">
+        {value}
+      </p>
+      {subtitle && <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)]/60 mt-1">{subtitle}</p>}
+    </div>
+  );
+}
+
+function ChartWrapper({ title, subtitle, rightContent, children, className }: any) {
+  return (
+    <div className={cn('bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden flex flex-col', className)}>
+      <div className="p-5 sm:p-6 border-b border-[var(--border)] flex justify-between items-center bg-[var(--bg)]/30">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">{title}</h3>
+          {subtitle && <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mt-1">{subtitle}</p>}
+        </div>
+        {rightContent}
+      </div>
+      <div className="p-4 sm:p-6 flex-1">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CustomTooltip({ active, payload, label, prefix = '' }: any) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700/30 backdrop-blur-sm">
-        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1.5">{label}</p>
+      <div className="bg-black/90 backdrop-blur-md text-white px-4 py-3 rounded-lg shadow-2xl border border-white/10 text-xs">
+        <p className="font-bold uppercase tracking-widest text-white/50 mb-1.5">{label}</p>
         {payload.map((item: any, i: number) => (
-          <p key={i} className="font-bold text-sm" style={{ color: item.color || '#fff' }}>
-            {prefix}{Number(item.value).toLocaleString('en-IN')}
-            {item.name && payload.length > 1 && (
-              <span className="text-gray-400 text-[10px] ml-2 font-normal">{item.name}</span>
-            )}
+          <p key={i} className="font-bold text-sm flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+            {prefix}{item.value.toLocaleString('en-IN')}
           </p>
         ))}
       </div>
@@ -131,607 +128,364 @@ function PremiumTooltip({ active, payload, label, prefix = '' }: any) {
   return null;
 }
 
-function PieTooltipRenderer({ active, payload }: any) {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700/30">
-        <p className="flex items-center gap-2 mb-1">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: payload[0].payload.color }} />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{payload[0].name}</span>
-        </p>
-        <p className="font-bold text-lg">{payload[0].value}</p>
-      </div>
-    );
-  }
-  return null;
-}
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
-// ─── CHART CARD WRAPPER ───────────────────────────────────────────────────────
-
-function ChartCard({ title, subtitle, children, className }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden', className)}>
-      <div className="p-5 sm:p-6 border-b border-[var(--border)]">
-        <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">{title}</h3>
-        {subtitle && <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mt-1">{subtitle}</p>}
-      </div>
-      <div className="p-4 sm:p-6">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-
-export default function AnalyticsPage() {
+export default function RedesignedAnalyticsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserDoc[]>([]);
-  const [products, setProducts] = useState<ProductDoc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>('30d');
+  const [revenueRange, setRevenueRange] = useState<'6m' | 'year' | 'week' | 'month'>('6m');
+  const [dailyOrderRange, setDailyOrderRange] = useState<'week' | 'month'>('month');
 
-  // ─── Fetch Data ───
   useEffect(() => {
-    let unsubOrders: () => void;
-    let unsubUsers: () => void;
-    let unsubProducts: () => void;
-
-    try {
-      unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-        setOrders(data);
-        setLoading(false);
-      }, (err) => {
-        console.error("Orders fetch error:", err);
-        setError("Failed to fetch orders data.");
-        setLoading(false);
-      });
-
-      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserDoc));
-        setUsers(data);
-      }, (err) => {
-        console.error("Users fetch error:", err);
-        setError("Failed to fetch users data.");
-      });
-
-      unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductDoc));
-        setProducts(data);
-      }, (err) => {
-        console.error("Products fetch error:", err);
-        setError("Failed to fetch products data.");
-      });
-    } catch (err) {
-      setError("Failed to initialize database listeners");
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
+      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
       setLoading(false);
-    }
-
-    return () => {
-      if (unsubOrders) unsubOrders();
-      if (unsubUsers) unsubUsers();
-      if (unsubProducts) unsubProducts();
-    };
+    });
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as UserDoc)));
+    });
+    return () => { unsubOrders(); unsubUsers(); };
   }, []);
 
-  // ─── Filtered Data ───
-  const filteredOrders = useMemo(() => {
-    if (dateRange === 'all') return orders;
+  // ─── Analytics Metrics ───
+  const metrics = useMemo(() => {
+    const delivered = orders.filter(o => o.status === 'delivered');
+    const totalRevenue = delivered.reduce((s, o) => s + o.total, 0);
+    const nonCancelled = orders.filter(o => o.status !== 'cancelled');
+    const avgOrderValue = nonCancelled.length > 0
+      ? nonCancelled.reduce((s, o) => s + o.total, 0) / nonCancelled.length
+      : 0;
+
+    return {
+      totalRevenue,
+      totalOrders: orders.length,
+      totalCustomers: users.length,
+      avgOrderValue
+    };
+  }, [orders, users]);
+
+  // ─── Chart 1: Monthly Revenue (Last 6 Months) ───
+  const monthlyRevenue = useMemo(() => {
     const now = new Date();
-    const cutoff = new Date();
-    if (dateRange === '7d') cutoff.setDate(now.getDate() - 7);
-    if (dateRange === '30d') cutoff.setDate(now.getDate() - 30);
-    if (dateRange === '3m') cutoff.setMonth(now.getMonth() - 3);
-    return orders.filter(o => getDateFromTimestamp(o.createdAt) >= cutoff);
-  }, [orders, dateRange]);
-
-  const filteredUsers = useMemo(() => {
-    if (dateRange === 'all') return users;
-    const now = new Date();
-    const cutoff = new Date();
-    if (dateRange === '7d') cutoff.setDate(now.getDate() - 7);
-    if (dateRange === '30d') cutoff.setDate(now.getDate() - 30);
-    if (dateRange === '3m') cutoff.setMonth(now.getMonth() - 3);
-    return users.filter(u => {
-      if (!u.createdAt) return true;
-      return getDateFromTimestamp(u.createdAt) >= cutoff;
-    });
-  }, [users, dateRange]);
-
-  // ─── Metrics ───
-  const totalRevenue = filteredOrders.filter(o => o.status !== 'cancelled').reduce((acc, o) => acc + (o.total || 0), 0);
-  const totalOrdersCount = filteredOrders.length;
-  const averageOrderValue = totalOrdersCount > 0
-    ? filteredOrders.filter(o => o.status !== 'cancelled').reduce((a, o) => a + o.total, 0) / filteredOrders.filter(o => o.status !== 'cancelled').length
-    : 0;
-  const totalCustomers = filteredUsers.length;
-
-  // ─── CHART 1 — Revenue Over Time (Line) ───
-  const revenueOverTime = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredOrders.filter(o => o.status !== 'cancelled').forEach(o => {
-      const d = getDateFromTimestamp(o.createdAt);
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      map.set(dateStr, (map.get(dateStr) || 0) + (o.total || 0));
-    });
-    return Array.from(map.entries()).map(([date, amount]) => ({ date, amount })).reverse();
-  }, [filteredOrders]);
-
-  // ─── CHART 2 — Orders Over Time (Bar) ───
-  const ordersOverTime = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredOrders.forEach(o => {
-      const d = getDateFromTimestamp(o.createdAt);
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      map.set(dateStr, (map.get(dateStr) || 0) + 1);
-    });
-    return Array.from(map.entries()).map(([date, count]) => ({ date, count })).reverse();
-  }, [filteredOrders]);
-
-  // ─── CHART 3 — Order Status Breakdown (Donut) ───
-  const orderStatusBreakdown = useMemo(() => {
-    const counts = { pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
-    filteredOrders.forEach(o => {
-      let st = o.status;
-      if ((st as any) === 'processing') st = 'confirmed';
-      if (counts[st] !== undefined) counts[st]++;
-    });
-    return Object.entries(counts).filter(([_, count]) => count > 0).map(([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: STATUS_COLORS[name as keyof typeof STATUS_COLORS],
-    }));
-  }, [filteredOrders]);
-
-  // ─── CHART 4 — Monthly Revenue Comparison (last 6 months) ───
-  const monthlyRevenueComparison = useMemo(() => {
-    const now = new Date();
-    const months: { label: string; month: number; year: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        month: d.getMonth(),
-        year: d.getFullYear(),
-      });
-    }
-
-    return months.map(m => {
-      const revenue = orders
-        .filter(o => o.status !== 'cancelled')
-        .filter(o => {
-          const d = getDateFromTimestamp(o.createdAt);
-          return d.getMonth() === m.month && d.getFullYear() === m.year;
-        })
-        .reduce((sum, o) => sum + (o.total || 0), 0);
-
-      const orderCount = orders.filter(o => {
-        const d = getDateFromTimestamp(o.createdAt);
-        return d.getMonth() === m.month && d.getFullYear() === m.year;
-      }).length;
-
-      return { month: m.label, revenue, orders: orderCount };
-    });
-  }, [orders]);
-
-  // ─── CHART 5 — Top 5 Selling Products (Bar) ───
-  const topProductsByQty = useMemo(() => {
-    const map = new Map<string, { name: string; units: number; revenue: number; image?: string }>();
-    filteredOrders.forEach(order => {
-      if (order.status === 'cancelled') return;
-      order.items?.forEach(item => {
-        const key = item.productId || item.id || item.name;
-        const current = map.get(key) || { name: item.name, units: 0, revenue: 0, image: item.imageUrl };
-        const qty = item.quantity || 1;
-        current.units += qty;
-        current.revenue += (item.price || 0) * qty;
-        if (!current.name && item.name) current.name = item.name;
-        map.set(key, current);
-      });
-    });
-    return Array.from(map.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.units - a.units)
-      .slice(0, 5);
-  }, [filteredOrders]);
-
-  // ─── CHART 6 — New Customers Over Time (Line) ───
-  const newCustomersOverTime = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredUsers.forEach(u => {
-      if (!u.createdAt) return;
-      const d = getDateFromTimestamp(u.createdAt);
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      map.set(dateStr, (map.get(dateStr) || 0) + 1);
-    });
-    return Array.from(map.entries()).map(([date, count]) => ({ date, count })).reverse();
-  }, [filteredUsers]);
-
-  // ─── CHART 7 — Revenue Trend (12 months) Area ───
-  const revenueTrend12Months = useMemo(() => {
-    const now = new Date();
-    const months: { label: string; month: number; year: number }[] = [];
-    for (let i = 11; i >= 0; i--) {
+    const months: { label: string; month: number; year: number; total: number }[] = [];
+    let monthsToFetch = 6;
+    if (revenueRange === 'year') monthsToFetch = 12;
+    if (revenueRange === '6m') monthsToFetch = 6;
+    
+    // Simple filter bypass for week/month for now to keep bar chart 6 months consistent label
+    for (let i = monthsToFetch - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       months.push({
         label: d.toLocaleDateString('en-US', { month: 'short' }),
         month: d.getMonth(),
         year: d.getFullYear(),
+        total: 0
       });
     }
 
-    return months.map(m => {
-      const revenue = orders
-        .filter(o => o.status !== 'cancelled')
-        .filter(o => {
-          const d = getDateFromTimestamp(o.createdAt);
-          return d.getMonth() === m.month && d.getFullYear() === m.year;
-        })
-        .reduce((sum, o) => sum + (o.total || 0), 0);
-      return { month: m.label, revenue };
+    orders.filter(o => o.status === 'delivered').forEach(o => {
+      const d = getDateFromTimestamp(o.createdAt);
+      const match = months.find(m => m.month === d.getMonth() && m.year === d.getFullYear());
+      if (match) match.total += o.total;
     });
-  }, [orders]);
 
-  // ─── CHART 8 — Revenue by Category (Horizontal Bar) ───
-  const categoryRevenue = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredOrders.filter(o => o.status !== 'cancelled').forEach(order => {
-      order.items?.forEach(item => {
-        const cat = item.categoryId || 'Uncategorized';
-        const itemRev = (item.price || 0) * (item.quantity || 1);
-        map.set(cat, (map.get(cat) || 0) + itemRev);
+    return months;
+  }, [orders, revenueRange]);
+
+  // ─── Chart 2: Top Selling Products (Horizontal Bar) ───
+  const topProducts = useMemo(() => {
+    const map = new Map<string, { name: string; units: number }>();
+    orders.filter(o => o.status === 'delivered').forEach(o => {
+      o.items.forEach(item => {
+        const id = item.productId || item.name;
+        const cur = map.get(id) || { name: item.name, units: 0 };
+        cur.units += item.quantity;
+        map.set(id, cur);
       });
     });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [filteredOrders]);
+    return Array.from(map.values())
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 5)
+      .reverse(); // For horizontal display ranking
+  }, [orders]);
 
-  // ─── Common chart axis/grid props ───
-  const commonAxisProps = {
-    stroke: 'var(--text-muted)',
-    fontSize: 10,
-    tickLine: false as const,
-    axisLine: false as const,
-  };
+  // ─── Chart 3: Order Breakdown (Donut) ───
+  const orderBreakdown = useMemo(() => {
+    const counts = { pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    orders.forEach(o => {
+      if (counts[o.status] !== undefined) counts[o.status]++;
+    });
+    const total = orders.length || 1;
+    return [
+      { name: 'Pending', value: counts.pending, color: COLORS.pending, percentage: (counts.pending / total) * 100 },
+      { name: 'Confirmed', value: counts.confirmed, color: COLORS.confirmed, percentage: (counts.confirmed / total) * 100 },
+      { name: 'Shipped', value: counts.shipped, color: COLORS.shipped, percentage: (counts.shipped / total) * 100 },
+      { name: 'Delivered', value: counts.delivered, color: COLORS.delivered, percentage: (counts.delivered / total) * 100 },
+      { name: 'Cancelled', value: counts.cancelled, color: COLORS.cancelled, percentage: (counts.cancelled / total) * 100 },
+    ].filter(v => v.value > 0);
+  }, [orders]);
+
+  // ─── Chart 4: Daily Orders (Current Month) ───
+  const dailyOrders = useMemo(() => {
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const days: { day: number; count: number }[] = [];
+    
+    let startDay = 1;
+    if (dailyOrderRange === 'week') {
+        const weekAgo = new Date();
+        weekAgo.setDate(now.getDate() - 7);
+        // Simplified for bar chart labels 1-31
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+        days.push({ day: i, count: 0 });
+    }
+
+    orders.forEach(o => {
+      const d = getDateFromTimestamp(o.createdAt);
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+        const day = d.getDate();
+        if (days[day-1]) days[day-1].count++;
+      }
+    });
+
+    return days;
+  }, [orders, dailyOrderRange]);
+
+  // ─── Chart 5: New Customers (Last 6 Months) ───
+  const newCustomers = useMemo(() => {
+    const now = new Date();
+    const months: { label: string; month: number; year: number; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        label: d.toLocaleDateString('en-US', { month: 'short' }),
+        month: d.getMonth(),
+        year: d.getFullYear(),
+        count: 0
+      });
+    }
+    users.forEach(u => {
+      if (!u.createdAt) return;
+      const d = getDateFromTimestamp(u.createdAt);
+      const match = months.find(m => m.month === d.getMonth() && m.year === d.getFullYear());
+      if (match) match.count++;
+    });
+    return months;
+  }, [users]);
+
+  // ─── Chart 6: Payment Methods ───
+  const paymentMethods = useMemo(() => {
+    let cod = 0;
+    let online = 0;
+    orders.filter(o => o.status !== 'cancelled').forEach(o => {
+      if (o.paymentMethod === 'cod') cod += o.total;
+      else online += o.total;
+    });
+    const total = (cod + online) || 1;
+    return [
+      { name: 'COD', value: cod, color: COLORS.confirmed, percentage: (cod / total) * 100 },
+      { name: 'Online', value: online, color: COLORS.black, percentage: (online / total) * 100 },
+    ];
+  }, [orders]);
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
-
-      {/* ── HEADER ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analytics & Reports</h1>
-          <p className="text-[var(--text-secondary)] text-sm mt-1">
-            Real-time insights across your entire store
-          </p>
-        </div>
-
-        {/* Date Filter Tabs */}
-        <div className="flex items-center bg-[var(--bg-card)] border border-[var(--border)] p-1 rounded-lg gap-0.5">
-          {(['7d', '30d', '3m', 'all'] as DateRange[]).map((range) => (
-            <button
-              key={range}
-              onClick={() => setDateRange(range)}
-              className={cn(
-                'px-3 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all',
-                dateRange === range
-                  ? 'bg-[var(--text-primary)] text-[var(--bg-card)] shadow-sm'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-              )}
-            >
-              {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '3m' ? '3 Months' : 'All'}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {/* ── Summary Stats ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Total Revenue" value={formatCurrency(metrics.totalRevenue)} subtitle="All delivered orders" icon={IndianRupee} color="text-emerald-500" bg="bg-emerald-500/10" />
+        <StatCard label="Total Orders" value={metrics.totalOrders} subtitle="All time" icon={ShoppingBag} color="text-blue-500" bg="bg-blue-500/10" />
+        <StatCard label="Total Customers" value={metrics.totalCustomers} subtitle="Registered users" icon={Users} color="text-purple-500" bg="bg-purple-500/10" />
+        <StatCard label="Avg Order Value" value={formatCurrency(Math.round(metrics.avgOrderValue))} subtitle="Excl. cancelled" icon={TrendingUp} color="text-amber-500" bg="bg-amber-500/10" />
       </div>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3">
-          <AlertCircle size={20} />
-          <p className="text-sm font-medium">{error}</p>
+      {/* ── Monthly Revenue Bar Chart ── */}
+      <ChartWrapper 
+        title="Revenue Overview" 
+        subtitle={`Last ${revenueRange === 'year' ? '12' : '6'} Months • Monthly Revenue`}
+        rightContent={
+          <div className="flex bg-[#F0F0F0] p-1 rounded-lg gap-0.5">
+            {['week', 'month', '6m', 'year'].map(r => (
+              <button 
+                key={r} 
+                onClick={() => setRevenueRange(r as any)}
+                className={cn(
+                    'px-2 py-1 text-[9px] font-bold uppercase tracking-widest rounded transition-all',
+                    revenueRange === r ? 'bg-white text-black shadow-sm' : 'text-[#94A3B8] hover:text-black'
+                )}
+              >
+                {r === '6m' ? 'Last 6M' : r === 'year' ? 'This Year' : r === 'week' ? 'Weekly' : 'Monthly'}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        <div className="h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyRevenue} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" dy={10} />
+              <YAxis axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" tickFormatter={v => `₹${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} />
+              <Tooltip content={<CustomTooltip prefix="₹" />} cursor={{ fill: '#f8fafc' }} />
+              <Bar dataKey="total" fill="#000000" radius={[6, 6, 0, 0]} barSize={40} label={{ position: 'top', formatter: (v: any) => formatCurrency(v), fontSize: 10, fill: '#000', fontWeight: 'bold' }} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      )}
+      </ChartWrapper>
 
-      {/* ── STAT CARDS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        {loading ? (
-          <><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /></>
-        ) : (
-          <>
-            {[
-              { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { label: 'Total Orders', value: totalOrdersCount.toLocaleString('en-IN'), icon: ShoppingBag, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { label: 'Avg. Order Value', value: `₹${Math.round(averageOrderValue).toLocaleString('en-IN')}`, icon: TrendingUp, color: 'text-violet-500', bg: 'bg-violet-500/10' },
-              { label: 'Total Customers', value: totalCustomers.toLocaleString('en-IN'), icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-            ].map(card => {
-              const Icon = card.icon;
-              return (
-                <div key={card.label} className="bg-[var(--bg-card)] border border-[var(--border)] p-5 rounded-xl hover:border-[var(--text-muted)]/30 transition-all group">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110', card.bg)}>
-                      <Icon size={18} className={card.color} />
-                    </div>
-                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{card.label}</h3>
-                  </div>
-                  <p className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">
-                    {card.value}
-                  </p>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-
-      {/* ── CHARTS GRID ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-
-        {/* 1. Revenue Over Time — Area Chart */}
-        <ChartCard title="Revenue Over Time" subtitle="Daily non-cancelled order revenue">
-          {loading ? <SkeletonLoader /> : (
-            <div className="h-[280px] sm:h-[320px] w-full">
-              {revenueOverTime.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueOverTime} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="areaGradGreen" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PALETTE.emerald} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={PALETTE.emerald} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="date" {...commonAxisProps} dy={8} interval="preserveStartEnd" />
-                    <YAxis {...commonAxisProps} tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} width={55} />
-                    <Tooltip content={<PremiumTooltip prefix="₹" />} />
-                    <Area type="monotone" dataKey="amount" stroke={PALETTE.emerald} strokeWidth={2.5} fill="url(#areaGradGreen)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: PALETTE.emerald }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No data available</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
-
-        {/* 2. Orders Over Time — Bar Chart */}
-        <ChartCard title="Orders Count Over Time" subtitle="All orders by day">
-          {loading ? <SkeletonLoader /> : (
-            <div className="h-[280px] sm:h-[320px] w-full">
-              {ordersOverTime.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ordersOverTime} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="barGradBlue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PALETTE.blue} stopOpacity={1} />
-                        <stop offset="100%" stopColor={PALETTE.blue} stopOpacity={0.5} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="date" {...commonAxisProps} dy={8} interval="preserveStartEnd" />
-                    <YAxis {...commonAxisProps} allowDecimals={false} width={35} />
-                    <Tooltip content={<PremiumTooltip />} cursor={{ fill: 'var(--bg-hover)', opacity: 0.5 }} />
-                    <Bar dataKey="count" fill="url(#barGradBlue)" radius={[6, 6, 0, 0]} barSize={28} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No data available</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
-
-        {/* 3. Order Status Breakdown — Donut */}
-        <ChartCard title="Order Status Breakdown" subtitle="Distribution by status">
-          {loading ? <SkeletonLoader /> : (
-            <div className="h-[280px] sm:h-[320px] w-full">
-              {orderStatusBreakdown.length > 0 ? (
-                <div className="flex flex-col sm:flex-row items-center justify-center h-full gap-6">
-                  <div className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={orderStatusBreakdown}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={65}
-                          outerRadius={90}
-                          paddingAngle={4}
-                          dataKey="value"
-                          stroke="none"
-                        >
-                          {orderStatusBreakdown.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<PieTooltipRenderer />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex flex-row sm:flex-col gap-3 sm:gap-2.5 flex-wrap justify-center">
-                    {orderStatusBreakdown.map((stat) => (
-                      <div key={stat.name} className="flex items-center gap-2.5">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: stat.color }} />
-                        <span className="text-xs text-[var(--text-secondary)] min-w-[70px]">{stat.name}</span>
-                        <span className="text-xs font-bold text-[var(--text-primary)] tabular-nums">{stat.value}</span>
-                      </div>
+      {/* ── Top Products & Order Status ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ChartWrapper title="Top Selling Products" subtitle="Top 5 items by units sold">
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topProducts} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" width={100} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="units" radius={[0, 6, 6, 0]} barSize={20} label={{ position: 'right', fontSize: 10, fill: '#94A3B8', fontWeight: 'bold' }}>
+                    {topProducts.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No data available</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartWrapper>
 
-        {/* 4. Monthly Revenue Comparison — Bar Chart (last 6 months) */}
-        <ChartCard title="Monthly Revenue Comparison" subtitle="Last 6 months">
-          {loading ? <SkeletonLoader /> : (
-            <div className="h-[280px] sm:h-[320px] w-full">
-              {monthlyRevenueComparison.some(m => m.revenue > 0) ? (
+        <ChartWrapper title="Order Breakdown" subtitle={`${orders.length} Total Orders`}>
+          <div className="h-[300px] flex flex-col items-center justify-center">
+             <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyRevenueComparison} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="barGradViolet" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PALETTE.violet} stopOpacity={1} />
-                        <stop offset="100%" stopColor={PALETTE.indigo} stopOpacity={0.6} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="month" {...commonAxisProps} dy={8} />
-                    <YAxis {...commonAxisProps} tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} width={55} />
-                    <Tooltip content={<PremiumTooltip prefix="₹" />} cursor={{ fill: 'var(--bg-hover)', opacity: 0.5 }} />
-                    <Bar dataKey="revenue" fill="url(#barGradViolet)" radius={[8, 8, 0, 0]} barSize={36} />
-                  </BarChart>
+                    <PieChart>
+                        <Pie
+                        data={orderBreakdown}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={6}
+                        dataKey="value"
+                        >
+                        {orderBreakdown.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
                 </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No revenue data yet</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
+             </div>
+             <div className="grid grid-cols-3 gap-x-4 gap-y-2 w-full mt-4">
+                {orderBreakdown.map(o => (
+                    <div key={o.name} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: o.color }} />
+                        <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-widest">{o.name}</span>
+                        <span className="text-[10px] text-black font-bold ml-auto tabular-nums">{o.value}</span>
+                    </div>
+                ))}
+             </div>
+          </div>
+        </ChartWrapper>
+      </div>
 
-        {/* 5. Top 5 Selling Products — Horizontal Bar */}
-        <ChartCard title="Top 5 Selling Products" subtitle="By units sold">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[var(--bg-hover)] animate-pulse rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-36 bg-[var(--bg-hover)] animate-pulse rounded" />
-                    <div className="h-3 w-20 bg-[var(--bg-hover)] animate-pulse rounded" />
-                  </div>
-                </div>
+      {/* ── Daily Orders Bar Chart ── */}
+      <ChartWrapper 
+        title="Daily Orders" 
+        subtitle="Current month daily volume"
+        rightContent={
+            <div className="flex bg-[#F0F0F0] p-1 rounded-lg gap-0.5">
+              {['week', 'month'].map(r => (
+                <button 
+                  key={r} 
+                  onClick={() => setDailyOrderRange(r as any)}
+                  className={cn(
+                      'px-2 py-1 text-[9px] font-bold uppercase tracking-widest rounded transition-all',
+                      dailyOrderRange === r ? 'bg-white text-black shadow-sm' : 'text-[#94A3B8] hover:text-black'
+                  )}
+                >
+                  {r === 'week' ? 'Weekly' : 'Monthly'}
+                </button>
               ))}
             </div>
-          ) : topProductsByQty.length > 0 ? (
-            <div className="space-y-3">
-              {topProductsByQty.map((p, i) => {
-                const maxUnits = topProductsByQty[0]?.units || 1;
-                const barWidth = (p.units / maxUnits) * 100;
-                return (
-                  <div key={p.id} className="flex items-center gap-3 group py-2">
-                    <span className="text-[var(--text-muted)] font-mono text-xs w-5 text-right tabular-nums">{i + 1}</span>
-                    <div className="w-10 h-10 bg-[var(--bg)] rounded-lg border border-[var(--border)] overflow-hidden relative flex-shrink-0">
-                      {p.image ? (
-                        <Image src={p.image} alt={p.name} fill className="object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Package size={14} className="text-[var(--text-muted)]" />
+          }
+      >
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={dailyOrders} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={9} fontWeight={600} stroke="#94A3B8" />
+              <YAxis axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" allowDecimals={false} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+              <Bar dataKey="count" fill={COLORS.pending} radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartWrapper>
+
+      {/* ── New Customers & Payment Methods ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
+        <ChartWrapper title="New Customers" subtitle="Last 6 months sign-ups">
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={newCustomers} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" dy={10} />
+                    <YAxis axisLine={false} tickLine={false} fontSize={10} fontWeight={600} stroke="#94A3B8" allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                    <Bar dataKey="count" fill={COLORS.delivered} radius={[6, 6, 0, 0]} barSize={40} />
+                </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartWrapper>
+
+        <ChartWrapper title="Payment Methods" subtitle="Revenue split by method">
+           <div className="h-[300px] flex flex-col items-center justify-center">
+              <div className="h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                        data={paymentMethods}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={10}
+                        dataKey="value"
+                        >
+                        {paymentMethods.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip prefix="₹" />} />
+                    </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-8 w-full mt-4">
+                 {paymentMethods.map(m => (
+                    <div key={m.name} className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }} />
+                            <span className="text-xs font-bold">{m.name}</span>
                         </div>
-                      )}
+                        <p className="text-lg font-bold">{formatCurrency(m.value)}</p>
+                        <p className="text-[10px] text-[#94A3B8] font-bold">{m.percentage.toFixed(1)}%</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-[var(--text-primary)] truncate">{p.name || 'Unknown Product'}</p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="flex-1 h-2 bg-[var(--bg)] rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${CHART_BAR_COLORS[i] || PALETTE.blue}, ${CHART_BAR_COLORS[i] || PALETTE.blue}99)` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest tabular-nums shrink-0">{p.units} units</span>
-                      </div>
-                    </div>
-                    <div className="text-right pl-2 shrink-0">
-                      <p className="text-sm font-bold text-[var(--text-primary)] tabular-nums">₹{p.revenue.toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-12 flex text-center justify-center text-[var(--text-muted)] text-sm">No products sold yet</div>
-          )}
-        </ChartCard>
-
-        {/* 6. Revenue by Category — Horizontal Bar */}
-        <ChartCard title="Revenue by Category" subtitle="Top categories by revenue">
-          {loading ? <SkeletonLoader /> : (
-            <div className="h-[280px] sm:h-[320px] w-full">
-              {categoryRevenue.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryRevenue} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="barGradTeal" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor={PALETTE.teal} stopOpacity={0.6} />
-                        <stop offset="100%" stopColor={PALETTE.teal} stopOpacity={1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                    <XAxis type="number" {...commonAxisProps} tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} />
-                    <YAxis dataKey="name" type="category" {...commonAxisProps} width={90} />
-                    <Tooltip content={<PremiumTooltip prefix="₹" />} cursor={{ fill: 'var(--bg-hover)', opacity: 0.5 }} />
-                    <Bar dataKey="value" fill="url(#barGradTeal)" radius={[0, 8, 8, 0]} barSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No data available</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
-
-        {/* 7. Revenue Trend — Area Chart (12 months) — Full Width */}
-        <ChartCard title="Revenue Trend" subtitle="Last 12 months" className="lg:col-span-2">
-          {loading ? <SkeletonLoader height="280px" /> : (
-            <div className="h-[250px] sm:h-[300px] w-full">
-              {revenueTrend12Months.some(m => m.revenue > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueTrend12Months} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="areaGradIndigo" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PALETTE.indigo} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={PALETTE.indigo} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="month" {...commonAxisProps} dy={8} />
-                    <YAxis {...commonAxisProps} tickFormatter={(v) => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} width={55} />
-                    <Tooltip content={<PremiumTooltip prefix="₹" />} />
-                    <Area type="monotone" dataKey="revenue" stroke={PALETTE.indigo} strokeWidth={2.5} fill="url(#areaGradIndigo)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: PALETTE.indigo }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No revenue data yet</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
-
-        {/* 8. New Customers Over Time — Line Chart */}
-        <ChartCard title="New Customers Over Time" subtitle="Sign-ups by day" className="lg:col-span-2">
-          {loading ? <SkeletonLoader height="250px" /> : (
-            <div className="h-[220px] sm:h-[260px] w-full">
-              {newCustomersOverTime.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={newCustomersOverTime} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="areaGradAmber" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={PALETTE.amber} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={PALETTE.amber} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="date" {...commonAxisProps} dy={8} interval="preserveStartEnd" />
-                    <YAxis {...commonAxisProps} allowDecimals={false} width={30} />
-                    <Tooltip content={<PremiumTooltip />} />
-                    <Area type="monotone" dataKey="count" stroke={PALETTE.amber} strokeWidth={2.5} fill="url(#areaGradAmber)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: PALETTE.amber }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[var(--text-muted)] text-sm">No customer data yet</div>
-              )}
-            </div>
-          )}
-        </ChartCard>
-
+                 ))}
+              </div>
+           </div>
+        </ChartWrapper>
       </div>
+
     </div>
   );
 }

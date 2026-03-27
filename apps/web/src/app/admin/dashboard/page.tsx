@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   Package,
@@ -20,6 +21,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { subscribeToAllOrders, type FirestoreOrder } from '@/lib/firestore/orderService';
 import { subscribeToProducts } from '@/lib/firestore/productService';
 import {
@@ -200,6 +202,7 @@ function StatusIcon({ status }: { status: string }) {
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [productCount, setProductCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -219,6 +222,30 @@ export default function AdminDashboardPage() {
   const recentOrders = orders.slice(0, 5);
   const now = new Date();
   const currentMonthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // ─── Top Selling Products ───
+  const topSellingProducts = useMemo(() => {
+    const productMap = new Map<string, { id: string; name: string; image: string; units: number; revenue: number }>();
+    
+    orders.filter(o => o.status === 'delivered').forEach(order => {
+      order.items.forEach(item => {
+        const current = productMap.get(item.productId) || {
+          id: item.productId,
+          name: item.name,
+          image: item.image,
+          units: 0,
+          revenue: 0
+        };
+        current.units += item.quantity;
+        current.revenue += item.price * item.quantity;
+        productMap.set(item.productId, current);
+      });
+    });
+
+    return Array.from(productMap.values())
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 5);
+  }, [orders]);
 
   // Stat card definitions
   const statCards = [
@@ -449,6 +476,78 @@ export default function AdminDashboardPage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ── Most Bought Items ── */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+        <div className="p-5 sm:p-6 border-b border-[var(--border)] bg-[var(--bg)]/30">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]">Most Bought Items</h2>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mt-1">Based on delivered orders</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-8 space-y-4">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center gap-4 animate-pulse">
+                  <div className="w-10 h-10 bg-[var(--bg-hover)] rounded-lg" />
+                  <div className="flex-1 h-4 bg-[var(--bg-hover)] rounded" />
+                </div>
+              ))}
+            </div>
+          ) : topSellingProducts.length > 0 ? (
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-[var(--bg)]/50 text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)] border-b border-[var(--border)]">
+                <tr>
+                  <th className="px-6 py-4 w-16">Rank</th>
+                  <th className="px-6 py-4">Product</th>
+                  <th className="px-6 py-4 text-center">Total Units Sold</th>
+                  <th className="px-6 py-4 text-right">Total Revenue Generated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]/50">
+                {topSellingProducts.map((p, index) => (
+                  <tr 
+                    key={p.id} 
+                    className="hover:bg-[var(--bg-hover)]/40 transition-colors cursor-pointer group"
+                    onClick={() => router.push(`/admin/products`)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-[var(--bg)] rounded border border-[var(--border)] overflow-hidden relative shrink-0">
+                          {p.image ? (
+                            <Image src={p.image} alt={p.name} fill className="object-cover group-hover:scale-110 transition-transform duration-300" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><Package size={14} /></div>
+                          )}
+                        </div>
+                        <span className="font-medium text-[var(--text-primary)] truncate max-w-[200px]">{p.name || 'Unknown Product'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-[var(--bg-hover)] text-[var(--text-primary)] font-bold text-xs tabular-nums">
+                        {p.units} units
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-[var(--text-primary)] tabular-nums">
+                      ₹{p.revenue.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-16 text-center text-[var(--text-muted)]">
+              <Package size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No sales data available yet</p>
+            </div>
+          )}
         </div>
       </div>
 
