@@ -15,6 +15,7 @@ import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
+import TryOnModal from '@/components/ui/TryOnModal';
 
 // We need to map Firestore product to the shape the cart expects.
 // The cart was built for the old Product type; we use a compatible subset.
@@ -43,6 +44,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [sizeError, setSizeError] = useState(false);
   const [sizeStock, setSizeStock] = useState<Record<string, number>>({});
+  const [tryOnOpen, setTryOnOpen] = useState(false);
 
   // Review Form State
   const [reviewRating, setReviewRating] = useState(5);
@@ -221,6 +223,15 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     }
   };
 
+  const handleTryOn = () => {
+    if (!initialized) return;
+    if (!user) {
+      toast.error('Please log in to use the Try-On feature');
+      return;
+    }
+    setTryOnOpen(true);
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -389,6 +400,14 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 )}
               </div>
             )}
+
+            {/* Try On Me */}
+            <button
+              onClick={handleTryOn}
+              className="w-full border border-black text-black py-4 text-xs tracking-widest uppercase font-medium hover:bg-black hover:text-white transition-all duration-300 flex items-center justify-center gap-2 mb-4"
+            >
+              ✨ Try On Me
+            </button>
 
             {/* Add to Cart */}
             <div className="flex flex-col sm:flex-row gap-4 mb-14">
@@ -651,6 +670,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
           </div>
         </div>
       )}
+      <TryOnModal
+        isOpen={tryOnOpen}
+        onClose={() => setTryOnOpen(false)}
+        productImage={product.images[0]}
+        productName={product.name}
+      />
     </div>
   );
 }

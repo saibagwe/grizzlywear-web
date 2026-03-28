@@ -21,6 +21,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      {
+        protocol: 'https',
+        hostname: '**.hf.space',
+      },
+      {
+        protocol: 'https',
+        hostname: 'huggingface.co',
+      },
 
     ],
   },
