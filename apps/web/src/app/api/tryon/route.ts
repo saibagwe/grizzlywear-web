@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Connect to HuggingFace
     const client = await Client.connect("yisol/IDM-VTON", {
       // @ts-ignore
-      hf_token: process.env.HF_TOKEN
+      token: process.env.HF_TOKEN
     });
 
     console.log('[/api/tryon] Calling predict...');

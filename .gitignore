@@ -7,6 +7,9 @@ node_modules/
 .env.local
 .env.*.local
 
+#Firebase sdk
+service-account.json
+
 # Build
 dist/
 .next/
