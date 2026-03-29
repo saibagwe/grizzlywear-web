@@ -9,7 +9,7 @@ import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
-import { Search, ShoppingBag, User, Menu, X, Heart, LogOut } from 'lucide-react';
+import { Search, ShoppingBag, User, Menu, X, Heart, LogOut, Camera } from 'lucide-react';
 
 const navLinks = [
   { href: '/shop?category=men', label: 'Men' },
@@ -92,6 +92,13 @@ export default function Navbar() {
 
             {/* Right icons */}
             <div className="flex items-center gap-3 sm:gap-4 text-white">
+              <Link
+                href="/visual-search"
+                className="p-2 transition-colors hover:opacity-70 text-white"
+                aria-label="Visual Search"
+              >
+                <Camera className="w-5 h-5" />
+              </Link>
               <button
                 onClick={toggleSearch}
                 className="p-2 transition-colors hover:opacity-70"
