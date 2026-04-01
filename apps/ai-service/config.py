@@ -9,7 +9,7 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "grizzlywear-catalog")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "grizzlywear-products")
 
 # Firebase Admin credentials
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "grizzlywear")
@@ -21,7 +21,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
 
 # Embedding model
 EMBEDDING_MODEL = "models/gemini-embedding-001"
-EMBEDDING_DIMENSION = 3072
+EMBEDDING_DIMENSION = 512
 
 # Chat model
 CHAT_MODEL = "gemini-2.5-flash"
