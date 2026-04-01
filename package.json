@@ -31,7 +31,12 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "sharp"
+      "sharp",
+      "@firebase/util",
+      "core-js",
+      "esbuild",
+      "protobufjs",
+      "unrs-resolver"
     ],
     "overrides": {
       "sharp": "^0.34.5"
