@@ -36,7 +36,8 @@
       "core-js",
       "esbuild",
       "protobufjs",
-      "unrs-resolver"
+      "unrs-resolver",
+      "onnxruntime-node"
     ],
     "overrides": {
       "sharp": "^0.34.5"

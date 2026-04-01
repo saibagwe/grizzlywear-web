@@ -32,15 +32,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node'],
-    serverExternalPackages: ['@xenova/transformers', 'onnxruntime-node'],
-  },
-  webpack: (config) => {
-    config.externals.push({
-      'onnxruntime-node': 'commonjs onnxruntime-node',
-      'sharp': 'commonjs sharp',
-    });
-    return config;
+    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node', '@xenova/transformers'],
   },
 };
 
