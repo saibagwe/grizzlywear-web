@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 .pnpm-store/
-
+gcp-credentials.json
 # Environment
 .env
 .env.local

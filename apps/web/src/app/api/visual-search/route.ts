@@ -27,10 +27,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'PINECONE_API_KEY not configured' }, { status: 500 });
     }
 
-    if (!process.env.PINECONE_INDEX_NAME) {
-      return NextResponse.json({ error: 'PINECONE_INDEX_NAME not configured' }, { status: 500 });
-    }
-
     // Generate CLIP embedding locally via Transformers.js for 100% reliability
     const { pipeline, env, RawImage } = await import('@xenova/transformers');
     
@@ -59,7 +55,8 @@ export async function POST(req: NextRequest) {
 
     // Query Pinecone
     const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-    const index = pinecone.index(process.env.PINECONE_INDEX_NAME!);
+    const pineconeIndexName = process.env.PINECONE_INDEX_NAME || 'grizzlywear-products';
+    const index = pinecone.index(pineconeIndexName);
 
     const results = await index.query({
       vector: embedding,

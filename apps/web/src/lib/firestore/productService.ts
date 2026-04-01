@@ -17,6 +17,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000';
+
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 export type FirestoreProduct = {
@@ -91,6 +93,44 @@ function docToProduct(id: string, data: DocumentData): FirestoreProduct {
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
+}
+
+async function syncProductEmbedding(
+  productId: string,
+  product: Partial<ProductInput> & { name?: string; slug?: string; price?: number }
+): Promise<void> {
+  const payload = {
+    productId,
+    name: product.name ?? '',
+    slug: product.slug ?? productId,
+    price: Number(product.price ?? 0),
+    comparePrice: Number(product.comparePrice ?? 0),
+    category: String(product.category ?? ''),
+    subcategory: String(product.subcategory ?? ''),
+    description: String(product.description ?? ''),
+    shortDescription: String(product.shortDescription ?? ''),
+    material: String(product.material ?? ''),
+    fit: String(product.fit ?? ''),
+    sizes: product.sizes ?? [],
+    features: product.features ?? [],
+    tags: product.tags ?? [],
+    careInstructions: product.careInstructions ?? [],
+    images: product.images ?? [],
+    inStock: product.inStock ?? true,
+    isFeatured: product.isFeatured ?? false,
+    isNew: product.isNew ?? false,
+  };
+
+  const response = await fetch(`${AI_SERVICE_URL}/ai/embed-product`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Embedding sync failed (${response.status}): ${errorText}`);
+  }
 }
 
 // ─── REAL-TIME LISTENER ───────────────────────────────────────────────────────
@@ -203,6 +243,13 @@ export async function createProduct(data: ProductInput): Promise<string> {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  try {
+    await syncProductEmbedding(ref.id, data);
+  } catch (error) {
+    console.error('Create succeeded but embedding sync failed:', error);
+  }
+
   return ref.id;
 }
 
@@ -218,6 +265,16 @@ export async function updateProduct(
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  try {
+    const updatedSnap = await getDoc(ref);
+    if (updatedSnap.exists()) {
+      const fullProduct = docToProduct(updatedSnap.id, updatedSnap.data());
+      await syncProductEmbedding(id, fullProduct);
+    }
+  } catch (error) {
+    console.error('Update succeeded but embedding sync failed:', error);
+  }
 }
 
 /**

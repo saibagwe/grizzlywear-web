@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.55",
+    "@google/generative-ai": "^0.24.1",
     "@gradio/client": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@pinecone-database/pinecone": "^7.1.0",
@@ -17,6 +19,7 @@
     "@react-three/fiber": "^8.17.14",
     "@tanstack/react-query": "^5.62.8",
     "@xenova/transformers": "^2.17.2",
+    "ai": "^6.0.142",
     "algoliasearch": "^5.20.0",
     "axios": "^1.7.9",
     "canvas-confetti": "^1.9.4",

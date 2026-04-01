@@ -18,10 +18,14 @@ FIREBASE_CLIENT_EMAIL = os.getenv("FIREBASE_CLIENT_EMAIL", "")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+GCP_LOCATION = os.getenv("GCP_LOCATION", "us-central1")
+VERTEX_MULTIMODAL_MODEL = os.getenv("VERTEX_MULTIMODAL_MODEL", "multimodalembedding@001")
 
 # Embedding model
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 EMBEDDING_DIMENSION = 512
+VERTEX_EMBEDDING_DIMENSION = 512
 
 # Chat model
-CHAT_MODEL = "gemini-2.5-flash"
+CHAT_MODEL = "models/gemini-2.5-flash-lite"

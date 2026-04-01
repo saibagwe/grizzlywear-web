@@ -52,24 +52,22 @@ def product_to_text(p: dict) -> str:
     return "\n".join(parts)
 
 
-def build_metadata(p: dict) -> dict:
-    """Build the metadata dict stored alongside the vector in Pinecone."""
+def build_pinecone_product_metadata(p: dict) -> dict:
+    """Build Pinecone metadata with the strict product schema."""
     return {
+        "productId": p.get("id", ""),
         "name": p.get("name", ""),
         "slug": p.get("slug", ""),
         "price": float(p.get("price", 0)),
+        "comparePrice": float(p.get("comparePrice", 0) or 0),
         "category": p.get("category", ""),
-        "subcategory": p.get("subcategory", ""),
-        "description": (p.get("shortDescription") or p.get("description", ""))[:500],
-        "material": p.get("material", ""),
-        "fit": p.get("fit", ""),
-        "sizes": ", ".join(p.get("sizes", [])),
-        "tags": ", ".join(p.get("tags", [])),
-        "image_url": (p.get("images") or [""])[0],
-        "in_stock": p.get("inStock", False),
-        "is_featured": p.get("isFeatured", False),
-        "is_new": p.get("isNew", False),
+        "imageUrl": (p.get("images") or [""])[0],
+        "inStock": p.get("inStock", False),
     }
+
+
+# Backward-compatible alias for existing imports.
+build_metadata = build_pinecone_product_metadata
 
 
 def ingest():
@@ -86,10 +84,12 @@ def ingest():
         text = product_to_text(p)
         print(f"[{i}/{len(products)}] Embedding: {p.get('name', 'Unnamed')}...")
         embedding = get_embedding(text)
+        if len(embedding) != 512:
+            raise ValueError(f"Embedding dimension mismatch for {p.get('id', 'unknown')}: {len(embedding)}")
         vectors.append({
             "id": p["id"],
             "values": embedding,
-            "metadata": build_metadata(p),
+            "metadata": build_pinecone_product_metadata(p),
         })
 
     print(f"\n⬆️  Upserting {len(vectors)} vectors to Pinecone...")

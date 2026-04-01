@@ -27,6 +27,71 @@ const db = admin.firestore()
 // Init Pinecone
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY })
 const index = pinecone.index(process.env.PINECONE_INDEX_NAME)
+const aiServiceUrl = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000'
+
+function productToText(product) {
+  return [
+    `Product: ${product.name ?? 'Unnamed'}`,
+    `Category: ${product.category ?? 'N/A'}`,
+    `Subcategory: ${product.subcategory ?? 'N/A'}`,
+    `Price: INR ${product.price ?? 0}`,
+    `Description: ${product.description ?? ''}`,
+    `Material: ${product.material ?? ''}`,
+    `Fit: ${product.fit ?? ''}`,
+    `Sizes: ${(product.sizes ?? []).join(', ')}`,
+    `Features: ${(product.features ?? []).join(', ')}`,
+    `Tags: ${(product.tags ?? []).join(', ')}`,
+  ].join('\n')
+}
+
+function buildMetadata(product) {
+  return {
+    productId: product.id,
+    name: product.name ?? '',
+    slug: product.slug ?? product.id,
+    price: product.price ?? 0,
+    comparePrice: product.comparePrice ?? 0,
+    category: product.category ?? '',
+    imageUrl: (product.images ?? [])[0] ?? '',
+    inStock: product.inStock ?? true,
+  }
+}
+
+async function triggerVertexEmbedding(product) {
+  const payload = {
+    productId: product.id,
+    name: product.name ?? '',
+    slug: product.slug ?? product.id,
+    price: product.price ?? 0,
+    comparePrice: product.comparePrice ?? 0,
+    category: product.category ?? '',
+    subcategory: product.subcategory ?? '',
+    description: product.description ?? '',
+    shortDescription: product.shortDescription ?? '',
+    material: product.material ?? '',
+    fit: product.fit ?? '',
+    sizes: product.sizes ?? [],
+    features: product.features ?? [],
+    tags: product.tags ?? [],
+    careInstructions: product.careInstructions ?? [],
+    images: product.images ?? [],
+    inStock: product.inStock ?? true,
+    isFeatured: product.isFeatured ?? false,
+    isNew: product.isNew ?? false,
+  }
+
+  const response = await fetch(`${aiServiceUrl}/ai/embed-product`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Vertex pipeline failed (${response.status}): ${await response.text()}`)
+  }
+
+  return response.json()
+}
 
 async function main() {
   console.log('')
@@ -74,36 +139,49 @@ async function main() {
 
       console.log(`${num} Indexing: ${product.name}`)
 
-      // Generate CLIP embedding locally
-      const output = await extractor(imageUrl, { pooling: 'mean', normalize: true })
-      const embedding = Array.from(output.data)
+      const xenovaPromise = (async () => {
+        const output = await extractor(imageUrl, { pooling: 'mean', normalize: true })
+        const embedding = Array.from(output.data)
 
-      // Validate embedding dimensions
-      if (embedding.length !== 512) {
-        throw new Error(`Unexpected embedding size: ${embedding.length}`)
+        if (embedding.length !== 512) {
+          throw new Error(`Unexpected Xenova embedding size: ${embedding.length}`)
+        }
+
+        await index.upsert({
+          records: [{
+            id: product.id,
+            values: embedding,
+            metadata: buildMetadata(product),
+          }]
+        })
+
+        return embedding.length
+      })()
+
+      const vertexPromise = triggerVertexEmbedding(product)
+
+      const [xenovaResult, vertexResult] = await Promise.allSettled([
+        xenovaPromise,
+        vertexPromise,
+      ])
+
+      if (xenovaResult.status === 'fulfilled') {
+        console.log(`  ✓ Xenova indexed (${xenovaResult.value} dims)`)
+      } else {
+        console.warn(`  ⚠ Xenova pipeline failed: ${xenovaResult.reason?.message ?? xenovaResult.reason}`)
       }
 
-      // Upsert to Pinecone
-      // NOTE: Pinecone SDK v7+ requires { records: [...] } structure
-      await index.upsert({
-        records: [{
-          id: product.id,
-          values: embedding,
-          metadata: {
-            productId: product.id,
-            name: product.name ?? '',
-            slug: product.slug ?? product.id,
-            price: product.price ?? 0,
-            comparePrice: product.comparePrice ?? 0,
-            category: product.category ?? '',
-            imageUrl: product.images[0],
-            inStock: product.inStock ?? true,
-          }
-        }]
-      })
+      if (vertexResult.status === 'fulfilled') {
+        console.log('  ✓ Vertex multimodal pipeline completed')
+      } else {
+        console.warn(`  ⚠ Vertex pipeline failed: ${vertexResult.reason?.message ?? vertexResult.reason}`)
+      }
 
-      success++
-      console.log(`  ✓ Indexed (${embedding.length} dims)`)
+      if (xenovaResult.status === 'fulfilled' || vertexResult.status === 'fulfilled') {
+        success++
+      } else {
+        failed++
+      }
 
     } catch (err) {
       failed++
