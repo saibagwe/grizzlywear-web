@@ -8,3 +8,6 @@ python-multipart==0.0.20
 httpx==0.28.1
 python-dotenv==1.0.1
 vertexai
+torch
+transformers
+requests
