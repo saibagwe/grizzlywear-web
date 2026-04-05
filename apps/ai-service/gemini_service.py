@@ -65,32 +65,36 @@ def _get_vertex_model() -> MultiModalEmbeddingModel:
     return _vertex_model
 
 
-def get_vertex_multimodal_embedding(text: str, image_url: str) -> list[float]:
+def get_vertex_multimodal_embedding(text: str, image_url: str = "") -> list[float]:
     """
-    Generate a 512-dim multimodal embedding from product text + image.
+    Generate a 512-dim embedding from text, optionally fused with an image.
     """
-    if not image_url:
-        raise ValueError("image_url is required for Vertex multimodal embedding")
 
     model = _get_vertex_model()
     tmp_path = ""
 
     try:
-        with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-            response = client.get(image_url)
-            response.raise_for_status()
-            image_bytes = response.content
+        if image_url:
+            with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                response = client.get(image_url)
+                response.raise_for_status()
+                image_bytes = response.content
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            tmp.write(image_bytes)
-            tmp_path = tmp.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(image_bytes)
+                tmp_path = tmp.name
 
-        image = Image.load_from_file(tmp_path)
-        embeddings = model.get_embeddings(
-            image=image,
-            contextual_text=text,
-            dimension=VERTEX_EMBEDDING_DIMENSION,
-        )
+            image = Image.load_from_file(tmp_path)
+            embeddings = model.get_embeddings(
+                image=image,
+                contextual_text=text,
+                dimension=VERTEX_EMBEDDING_DIMENSION,
+            )
+        else:
+            embeddings = model.get_embeddings(
+                contextual_text=text,
+                dimension=VERTEX_EMBEDDING_DIMENSION,
+            )
 
         vectors: list[list[float]] = []
         image_vec = getattr(embeddings, "image_embedding", None)
@@ -105,10 +109,16 @@ def get_vertex_multimodal_embedding(text: str, image_url: str) -> list[float]:
             raise ValueError("Vertex returned no embeddings")
 
         if len(vectors) == 1:
-            return vectors[0]
+            merged = vectors[0]
+        else:
+            # Merge image + text vectors to keep a single cross-modal representation.
+            merged = [sum(values) / len(values) for values in zip(*vectors)]
 
-        # Merge image + text vectors to keep a single cross-modal representation.
-        merged = [sum(values) / len(values) for values in zip(*vectors)]
+        if len(merged) != VERTEX_EMBEDDING_DIMENSION:
+            raise ValueError(
+                f"Vertex embedding dimension mismatch: {len(merged)} != {VERTEX_EMBEDDING_DIMENSION}"
+            )
+
         return merged
 
     finally:

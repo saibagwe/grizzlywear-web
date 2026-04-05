@@ -93,11 +93,11 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     try:
-        from gemini_service import get_query_embedding, chat_with_context
+        from gemini_service import get_vertex_multimodal_embedding, chat_with_context
         from pinecone_service import query_vectors
 
         # 1. Embed the user query
-        query_vec = get_query_embedding(req.message)
+        query_vec = get_vertex_multimodal_embedding(text=req.message)
 
         # 2. Search Pinecone for relevant products
         results = query_vectors(query_vec, top_k=5)
