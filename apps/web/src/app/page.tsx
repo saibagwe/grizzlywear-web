@@ -38,6 +38,7 @@ function ParticleField(props: unknown) {
 }
 
 export default function HomePage() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const subRef = useRef<HTMLParagraphElement>(null);
@@ -47,6 +48,7 @@ export default function HomePage() {
   const editLeftRef = useRef<HTMLDivElement>(null);
   const editRightRef = useRef<HTMLDivElement>(null);
   const socialRef = useRef<HTMLDivElement>(null);
+  const socialTrackRef = useRef<HTMLDivElement>(null);
   const categoryRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const newsletterRef = useRef<HTMLDivElement>(null);
 
@@ -108,18 +110,6 @@ export default function HomePage() {
       );
     });
 
-    // 4. New Arrivals Stagger
-    const arrivals = newArrivalsRef.current?.querySelectorAll('.product-card');
-    if (arrivals) {
-      gsap.fromTo(arrivals,
-        { y: 50, opacity: 0 },
-        {
-          y: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: 'power3.out',
-          scrollTrigger: { trigger: newArrivalsRef.current, start: 'top 80%' }
-        }
-      );
-    }
-
     // 5. The Grizz Edit Split Animation
     if (editLeftRef.current && editRightRef.current) {
       gsap.fromTo(editLeftRef.current,
@@ -138,18 +128,6 @@ export default function HomePage() {
       );
     }
 
-    // 6. Social Wall Stagger
-    const socials = socialRef.current?.querySelectorAll('.social-item');
-    if (socials) {
-      gsap.fromTo(socials,
-        { y: 50, opacity: 0 },
-        {
-          y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out',
-          scrollTrigger: { trigger: socialRef.current, start: 'top 85%' }
-        }
-      );
-    }
-
     // 7. Newsletter Fade
     if (newsletterRef.current) {
       gsap.fromTo(newsletterRef.current,
@@ -163,6 +141,181 @@ export default function HomePage() {
 
   }, []);
 
+  useEffect(() => {
+    if (!pageRef.current) return;
+
+    const cleanups: Array<() => void> = [];
+    const bindTilt = (card: HTMLElement, imageSelector: string, intensity = 12) => {
+      const image = card.querySelector<HTMLElement>(imageSelector);
+      gsap.set(card, {
+        transformPerspective: 1000,
+        transformStyle: 'preserve-3d',
+      });
+
+      const rotateX = gsap.quickTo(card, 'rotationX', { duration: 0.45, ease: 'power3.out' });
+      const rotateY = gsap.quickTo(card, 'rotationY', { duration: 0.45, ease: 'power3.out' });
+      const cardY = gsap.quickTo(card, 'y', { duration: 0.45, ease: 'power3.out' });
+      const imgScale = image
+        ? gsap.quickTo(image, 'scale', { duration: 0.55, ease: 'power3.out' })
+        : null;
+      const imgX = image
+        ? gsap.quickTo(image, 'x', { duration: 0.55, ease: 'power3.out' })
+        : null;
+      const imgY = image
+        ? gsap.quickTo(image, 'y', { duration: 0.55, ease: 'power3.out' })
+        : null;
+
+      const onMove = (event: MouseEvent) => {
+        const bounds = card.getBoundingClientRect();
+        const relX = (event.clientX - bounds.left) / bounds.width - 0.5;
+        const relY = (event.clientY - bounds.top) / bounds.height - 0.5;
+
+        rotateY(relX * intensity);
+        rotateX(-relY * intensity);
+        cardY(-4);
+        imgScale?.(1.06);
+        imgX?.(relX * 10);
+        imgY?.(relY * 10);
+      };
+
+      const onLeave = () => {
+        rotateX(0);
+        rotateY(0);
+        cardY(0);
+        imgScale?.(1);
+        imgX?.(0);
+        imgY?.(0);
+      };
+
+      card.addEventListener('mousemove', onMove);
+      card.addEventListener('mouseleave', onLeave);
+      cleanups.push(() => {
+        card.removeEventListener('mousemove', onMove);
+        card.removeEventListener('mouseleave', onLeave);
+      });
+    };
+
+    const ctx = gsap.context(() => {
+      const droppedCards = gsap.utils.toArray<HTMLElement>('.home-drop-card');
+      if (droppedCards.length && newArrivalsRef.current) {
+        gsap.fromTo(
+          droppedCards,
+          { autoAlpha: 0, y: 48, scale: 0.96, filter: 'blur(10px)' },
+          {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            filter: 'blur(0px)',
+            duration: 0.95,
+            ease: 'power4.out',
+            stagger: 0.12,
+            scrollTrigger: {
+              trigger: newArrivalsRef.current,
+              start: 'top 78%',
+            },
+          }
+        );
+
+        droppedCards.forEach((card) => {
+          bindTilt(card, '.home-drop-image', 10);
+
+          const image = card.querySelector<HTMLElement>('.home-drop-image');
+          if (image) {
+            gsap.fromTo(
+              image,
+              { yPercent: -5, scale: 1.08 },
+              {
+                yPercent: 8,
+                scale: 1,
+                ease: 'none',
+                scrollTrigger: {
+                  trigger: card,
+                  start: 'top bottom',
+                  end: 'bottom top',
+                  scrub: 1,
+                },
+              }
+            );
+          }
+        });
+      }
+
+      const featuredCards = gsap.utils.toArray<HTMLElement>('.home-feature-card');
+      if (featuredCards.length && editRightRef.current) {
+        gsap.fromTo(
+          featuredCards,
+          {
+            autoAlpha: 0,
+            y: 60,
+            scale: 0.94,
+            clipPath: 'inset(0 0 20% 0)',
+          },
+          {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            clipPath: 'inset(0 0 0% 0)',
+            duration: 1,
+            ease: 'power4.out',
+            stagger: 0.12,
+            scrollTrigger: {
+              trigger: editRightRef.current,
+              start: 'top 78%',
+            },
+          }
+        );
+
+        featuredCards.forEach((card) => bindTilt(card, '.home-feature-image', 8));
+      }
+
+      const socialCards = gsap.utils.toArray<HTMLElement>('.social-item');
+      if (socialCards.length && socialRef.current) {
+        gsap.fromTo(
+          socialCards,
+          { autoAlpha: 0, y: 30, scale: 0.95 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.75,
+            ease: 'power3.out',
+            stagger: 0.08,
+            scrollTrigger: {
+              trigger: socialRef.current,
+              start: 'top 82%',
+            },
+          }
+        );
+
+        socialCards.forEach((card) => bindTilt(card, '.social-image', 6));
+      }
+
+      if (socialTrackRef.current && socialRef.current) {
+        gsap.fromTo(
+          socialTrackRef.current,
+          { xPercent: -2 },
+          {
+            xPercent: 2,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: socialRef.current,
+              start: 'top bottom',
+              end: 'bottom top',
+              scrub: 1.2,
+            },
+          }
+        );
+      }
+    }, pageRef);
+
+    ScrollTrigger.refresh();
+
+    return () => {
+      cleanups.forEach((cleanup) => cleanup());
+      ctx.revert();
+    };
+  }, [newArrivals.length, featuredEdit.length, allProducts.length]);
+
   const handleNewsletter = (e: React.FormEvent) => {
     e.preventDefault();
     toast.success('Thanks for subscribing! Check your inbox.');
@@ -170,7 +323,7 @@ export default function HomePage() {
   };
 
   return (
-    <>
+    <div ref={pageRef}>
       {/* ===== HERO SECTION ===== */}
       <section ref={heroRef} className="relative h-screen flex items-center justify-center bg-black overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -235,10 +388,10 @@ export default function HomePage() {
             {newArrivals.length === 0 ? (
               <div className="col-span-4 py-12 text-center text-gray-400 text-sm uppercase tracking-widest">No new arrivals yet</div>
             ) : newArrivals.map((p: FirestoreProduct) => (
-              <Link href={`/shop/${p.slug}`} key={p.id} className="product-card group cursor-pointer block">
+              <Link href={`/shop/${p.slug}`} key={p.id} className="home-drop-card product-card group cursor-pointer block will-change-transform">
                 <div className="aspect-[3/4] bg-gray-100 mb-4 overflow-hidden relative">
-                  {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover transition-opacity duration-500 group-hover:opacity-0" sizes="(max-width: 768px) 100vw, 25vw" />}
-                  {p.images[1] && <Image src={p.images[1] || p.images[0]} alt={`${p.name} Alt`} fill className="object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 scale-105 group-hover:scale-100 ease-out" sizes="(max-width: 768px) 100vw, 25vw" />}
+                  {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="home-drop-image object-cover transition-opacity duration-500 group-hover:opacity-0" sizes="(max-width: 768px) 100vw, 25vw" />}
+                  {p.images[1] && <Image src={p.images[1] || p.images[0]} alt={`${p.name} Alt`} fill className="home-drop-image object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 scale-105 group-hover:scale-100 ease-out" sizes="(max-width: 768px) 100vw, 25vw" />}
                   <div className="absolute top-4 left-4 bg-white px-2 py-1 text-[10px] uppercase font-bold tracking-widest z-10">New</div>
                 </div>
                 <div className="flex justify-between items-start">
@@ -316,8 +469,8 @@ export default function HomePage() {
                 {featuredEdit.length === 0 ? (
                   <div className="col-span-2 py-12 text-center text-gray-500 text-sm uppercase tracking-widest">No featured products yet</div>
                 ) : featuredEdit.map((p: FirestoreProduct) => (
-                  <Link href={`/shop/${p.slug}`} key={p.id} className="group relative aspect-[4/5] bg-[#111] overflow-hidden">
-                    {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" sizes="(max-width: 1024px) 50vw, 33vw" />}
+                  <Link href={`/shop/${p.slug}`} key={p.id} className="home-feature-card group relative aspect-[4/5] bg-[#111] overflow-hidden will-change-transform">
+                    {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="home-feature-image object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" sizes="(max-width: 1024px) 50vw, 33vw" />}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                       <p className="text-sm font-medium text-white mb-1">{p.name}</p>
                       <p className="text-xs text-gray-300">₹{p.price.toLocaleString('en-IN')}</p>
@@ -341,10 +494,10 @@ export default function HomePage() {
 
         {/* Scrolling or Static Grid of 6 */}
         <div className="flex overflow-x-auto pb-8 snap-x snap-mandatory hide-scrollbar">
-          <div className="flex gap-2 px-4 sm:px-8 min-w-max mx-auto">
+          <div ref={socialTrackRef} className="flex gap-2 px-4 sm:px-8 min-w-max mx-auto">
             {allProducts.slice(0, 6).map((p: FirestoreProduct, i: number) => (
-              <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noreferrer" key={i} className="social-item group relative w-[250px] sm:w-[300px] aspect-square bg-gray-100 flex-shrink-0 snap-center overflow-hidden">
-                {(p.images[2] || p.images[0]) && <Image src={p.images[2] || p.images[0]} alt="Instagram Post" fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="300px" />}
+              <a href="https://www.instagram.com/grizzlywear.in/" target="_blank" rel="noreferrer" key={i} className="social-item group relative w-[250px] sm:w-[300px] aspect-square bg-gray-100 flex-shrink-0 snap-center overflow-hidden will-change-transform">
+                {(p.images[2] || p.images[0]) && <Image src={p.images[2] || p.images[0]} alt="Instagram Post" fill className="social-image object-cover group-hover:scale-110 transition-transform duration-700" sizes="300px" />}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                   <div className="text-white text-center flex flex-col items-center">
                     <Instagram size={32} className="mb-2" />
@@ -405,6 +558,6 @@ export default function HomePage() {
       >
         <Shield size={8} />
       </Link>
-    </>
+    </div>
   );
 }
