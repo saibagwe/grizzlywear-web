@@ -2,7 +2,7 @@ export type Product = {
   id: string;
   slug: string;
   name: string;
-  category: 'men' | 'women' | 'accessories' | 'new-arrivals';
+  category: 'men' | 'women';
   subcategory: string;
   price: number;
   comparePrice?: number;

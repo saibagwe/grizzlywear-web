@@ -4,8 +4,6 @@ const footerLinks = {
   shop: [
     { href: '/shop?category=men', label: 'Men' },
     { href: '/shop?category=women', label: 'Women' },
-    { href: '/shop?category=accessories', label: 'Accessories' },
-    { href: '/shop?category=new-arrivals', label: 'New Arrivals' },
   ],
   help: [
     { href: '/track', label: 'Track Order' },

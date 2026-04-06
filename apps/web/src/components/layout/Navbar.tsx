@@ -14,8 +14,6 @@ import { Search, ShoppingBag, User, Menu, X, Heart, LogOut, Camera } from 'lucid
 const navLinks = [
   { href: '/shop?category=men', label: 'Men' },
   { href: '/shop?category=women', label: 'Women' },
-  { href: '/shop?category=accessories', label: 'Accessories' },
-  { href: '/shop?category=new-arrivals', label: 'New Arrivals' },
 ];
 
 export default function Navbar() {

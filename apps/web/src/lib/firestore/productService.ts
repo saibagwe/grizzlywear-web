@@ -30,7 +30,7 @@ export type FirestoreProduct = {
   discount?: number;
   description: string;
   shortDescription: string;
-  category: 'men' | 'women' | 'accessories' | 'new-arrivals';
+  category: 'men' | 'women';
   subcategory: string;
   images: string[];
   sizes: string[];
