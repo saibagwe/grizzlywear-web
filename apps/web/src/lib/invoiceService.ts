@@ -1,7 +1,6 @@
 /**
- * Invoice Generation Service
- * Generates clean, professional PDF invoices using jsPDF.
- * Stores base64 invoice data back to Firestore on the order document.
+ * Invoice Generation Service — GrizzlyWear
+ * Professional PDF invoice with GST tax breakdown.
  */
 
 import { jsPDF } from 'jspdf';
@@ -41,407 +40,501 @@ export type InvoiceOrderData = {
 };
 
 const GST_NO = '27ABBFG6204A1Z1';
+const GST_RATE = 18; // 18% GST (9% CGST + 9% SGST) included in price
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
 
-function formatCurrency(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN')}`;
+function rs(n: number): string {
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatDate(dateInput?: any): string {
-  let d: Date;
-  if (!dateInput) {
-    d = new Date();
-  } else if (dateInput?.toDate) {
-    d = dateInput.toDate();
-  } else if (dateInput?.seconds) {
-    d = new Date(dateInput.seconds * 1000);
-  } else {
-    d = new Date(dateInput);
+function fmtDate(d?: any): string {
+  const dt = !d ? new Date() : d?.toDate ? d.toDate() : d?.seconds ? new Date(d.seconds * 1000) : new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function toWords(n: number): string {
+  if (n === 0) return 'Zero';
+  const o = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+    'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const t = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function c(num: number): string {
+    if (num < 20) return o[num];
+    if (num < 100) return t[Math.floor(num/10)] + (num%10 ? ' ' + o[num%10] : '');
+    if (num < 1000) return o[Math.floor(num/100)] + ' Hundred' + (num%100 ? ' ' + c(num%100) : '');
+    if (num < 100000) return c(Math.floor(num/1000)) + ' Thousand' + (num%1000 ? ' ' + c(num%1000) : '');
+    if (num < 10000000) return c(Math.floor(num/100000)) + ' Lakh' + (num%100000 ? ' ' + c(num%100000) : '');
+    return c(Math.floor(num/10000000)) + ' Crore' + (num%10000000 ? ' ' + c(num%10000000) : '');
   }
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const w = Math.floor(n);
+  const p = Math.round((n - w) * 100);
+  return 'Rupees ' + c(w) + (p > 0 ? ' and ' + c(p) + ' Paise' : '') + ' Only';
 }
 
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 2) + '..';
+function clip(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 2) + '..';
 }
 
-// ─── PDF GENERATION ───────────────────────────────────────────────────────────
+// ─── PDF PRIMITIVES ───────────────────────────────────────────────────────────
+
+function rgb(h: string) {
+  return { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) };
+}
+function tc(p: jsPDF, h: string) { const c = rgb(h); p.setTextColor(c.r,c.g,c.b); }
+function fc(p: jsPDF, h: string) { const c = rgb(h); p.setFillColor(c.r,c.g,c.b); }
+function dc(p: jsPDF, h: string) { const c = rgb(h); p.setDrawColor(c.r,c.g,c.b); }
+
+function fill(p: jsPDF, x: number, y: number, w: number, h: number, color: string) {
+  fc(p, color); p.rect(x, y, w, h, 'F');
+}
+
+function stroke(p: jsPDF, x: number, y: number, w: number, h: number, color: string, lw = 0.3) {
+  dc(p, color); p.setLineWidth(lw); p.rect(x, y, w, h, 'S');
+}
+
+function line(p: jsPDF, x1: number, y1: number, x2: number, y2: number, color: string, lw = 0.3) {
+  dc(p, color); p.setLineWidth(lw); p.line(x1, y1, x2, y2);
+}
+
+// Right-align text within a cell ending at xRight
+function textR(p: jsPDF, txt: string, xRight: number, y: number) {
+  p.text(txt, xRight, y, { align: 'right' });
+}
+
+// ─── GENERATE PDF ─────────────────────────────────────────────────────────────
 
 export function generateInvoicePDF(order: InvoiceOrderData): string {
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const p = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const PW = 210, M = 14, CW = PW - 2*M, RE = PW - M;
+  let y = 0;
 
-  const pageWidth = 210;
-  const margin = 20;
-  const contentWidth = pageWidth - margin * 2;
-  let y = 20;
+  // ════════════════════════════════════════════════════════════════════════
+  //  HEADER
+  // ════════════════════════════════════════════════════════════════════════
 
-  // Colors
-  const black = '#000000';
-  const darkGray = '#333333';
-  const mediumGray = '#666666';
-  const lightGray = '#999999';
-  const accentGreen = '#16a34a';
-  const lineColor = '#E5E5E5';
-  const bgLight = '#FAFAFA';
+  fill(p, 0, 0, PW, 1.2, '#1a1a1a');
+  y = 10;
 
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  HEADER — Brand + Invoice Info                                          ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
+  p.setFont('helvetica', 'bold');
+  p.setFontSize(18);
+  tc(p, '#1a1a1a');
+  p.text('GRIZZLYWEAR', M, y);
 
-  // Top accent line
-  pdf.setFillColor(0, 0, 0);
-  pdf.rect(0, 0, pageWidth, 3, 'F');
+  p.setFontSize(7);
+  tc(p, '#999999');
+  p.text('Premium Streetwear & Fashion', M, y + 4.5);
 
-  y = 18;
-
-  // Brand name
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(22);
-  pdf.setTextColor(black);
-  pdf.text('GRIZZLYWEAR', margin, y);
-
-  // Invoice label on right
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(lightGray);
-  pdf.text('TAX INVOICE', pageWidth - margin, y - 5, { align: 'right' });
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.setTextColor(black);
-  pdf.text(`#${order.orderId}`, pageWidth - margin, y + 1, { align: 'right' });
+  // Right: Tax Invoice title
+  p.setFont('helvetica', 'bold');
+  p.setFontSize(16);
+  tc(p, '#cccccc');
+  textR(p, 'TAX INVOICE', RE, y);
 
   y += 8;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.setTextColor(mediumGray);
-  pdf.text(`GSTIN: ${GST_NO}`, margin, y);
+  line(p, M, y, RE, y, '#1a1a1a', 0.5);
+  line(p, M, y + 0.7, RE, y + 0.7, '#1a1a1a', 0.12);
 
-  pdf.setTextColor(lightGray);
-  pdf.setFontSize(9);
-  pdf.text(`Date: ${formatDate(order.createdAt)}`, pageWidth - margin, y, { align: 'right' });
-
-  y += 4;
-
-  // Divider line
-  y += 4;
-  pdf.setDrawColor(lineColor);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 8;
-
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  SOLD BY & BILL TO — Two columns                                        ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
-
-  const colLeft = margin;
-  const colRight = margin + contentWidth / 2 + 5;
-  const colHalf = contentWidth / 2 - 5;
-
-  // ── Sold By ──
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7);
-  pdf.setTextColor(lightGray);
-  pdf.text('SOLD BY', colLeft, y);
-
-  // ── Bill To ──
-  pdf.text('BILL TO', colRight, y);
+  // ════════════════════════════════════════════════════════════════════════
+  //  INVOICE META — 4 columns
+  // ════════════════════════════════════════════════════════════════════════
 
   y += 5;
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9);
-  pdf.setTextColor(black);
-  pdf.text('GrizzlyWear', colLeft, y);
+  const mw = CW / 4;
 
-  const custName = order.customerName || order.deliveryAddress?.name || 'Customer';
-  pdf.text(truncateText(custName, 30), colRight, y);
+  const meta = [
+    ['Invoice No.', order.orderId],
+    ['Date', fmtDate(order.createdAt)],
+    ['Place of Supply', 'Maharashtra'],
+    ['GSTIN', GST_NO],
+  ];
 
-  y += 4.5;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.setTextColor(mediumGray);
-  pdf.text('Fashion & Lifestyle', colLeft, y);
-
-  if (order.customerEmail) {
-    pdf.text(truncateText(order.customerEmail, 35), colRight, y);
-  }
-
-  y += 4;
-  pdf.text(`GSTIN: ${GST_NO}`, colLeft, y);
-
-  const custPhone = order.customerPhone || order.deliveryAddress?.phone || '';
-  if (custPhone) {
-    pdf.text(`Phone: ${custPhone}`, colRight, y);
-  }
-
-  y += 4;
-  pdf.text('India', colLeft, y);
-
-  // Delivery Address
-  const addr = order.deliveryAddress;
-  const addrLine1 = addr?.line1 || addr?.address || '';
-  const addrLine2 = addr?.line2 || '';
-  const addrCityLine = [addr?.city, addr?.state, addr?.pincode].filter(Boolean).join(', ');
-
-  if (addrLine1) {
-    pdf.text(truncateText(addrLine1, 40), colRight, y);
-    y += 4;
-    if (addrLine2) {
-      pdf.text(truncateText(addrLine2, 40), colRight, y);
-      y += 4;
-    }
-    pdf.text(addrCityLine, colRight, y);
-  }
-
-  y += 8;
-
-  // Divider
-  pdf.setDrawColor(lineColor);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 2;
-
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  ITEMS TABLE                                                             ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
-
-  // Table header background
-  y += 1;
-  pdf.setFillColor(245, 245, 245);
-  pdf.rect(margin, y - 1, contentWidth, 8, 'F');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7);
-  pdf.setTextColor(lightGray);
-
-  const colItem = margin + 3;
-  const colSize = margin + 85;
-  const colQty = margin + 108;
-  const colRate = margin + 128;
-  const colAmount = pageWidth - margin - 3;
-
-  pdf.text('ITEM', colItem, y + 5);
-  pdf.text('SIZE', colSize, y + 5);
-  pdf.text('QTY', colQty, y + 5);
-  pdf.text('RATE', colRate, y + 5);
-  pdf.text('AMOUNT', colAmount, y + 5, { align: 'right' });
-
-  y += 12;
-
-  // Table rows
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8.5);
-
-  order.items.forEach((item, idx) => {
-    const lineTotal = item.price * item.quantity;
-
-    // Zebra stripe
-    if (idx % 2 === 1) {
-      pdf.setFillColor(250, 250, 250);
-      pdf.rect(margin, y - 4, contentWidth, 10, 'F');
-    }
-
-    pdf.setTextColor(darkGray);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(truncateText(item.name, 40), colItem, y);
-
-    pdf.setTextColor(mediumGray);
-    pdf.text(item.size || '—', colSize, y);
-    pdf.text(String(item.quantity), colQty, y);
-    pdf.text(formatCurrency(item.price), colRate, y);
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(darkGray);
-    pdf.text(formatCurrency(lineTotal), colAmount, y, { align: 'right' });
-
-    y += 10;
+  meta.forEach((m2, i) => {
+    const cx = M + i * mw;
+    p.setFont('helvetica', 'normal'); p.setFontSize(6); tc(p, '#999999');
+    p.text(m2[0].toUpperCase(), cx, y);
+    p.setFont('helvetica', 'bold'); p.setFontSize(8); tc(p, '#1a1a1a');
+    p.text(clip(m2[1], 22), cx, y + 4.5);
   });
 
-  // Bottom table line
-  y += 2;
-  pdf.setDrawColor(lineColor);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 8;
+  y += 11;
+  line(p, M, y, RE, y, '#e5e5e5');
 
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  PRICING SUMMARY — Right-aligned                                        ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
+  // ════════════════════════════════════════════════════════════════════════
+  //  SELLER / CUSTOMER — side by side
+  // ════════════════════════════════════════════════════════════════════════
 
-  const summaryLabelX = pageWidth - margin - 55;
-  const summaryValueX = pageWidth - margin - 3;
+  y += 4;
+  const cardGap = 6;
+  const cardW = (CW - cardGap) / 2;
+  const LX = M, RX = M + cardW + cardGap;
+  const cardH = 36;
 
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(mediumGray);
+  // Seller
+  stroke(p, LX, y, cardW, cardH, '#e0e0e0', 0.2);
+  fill(p, LX, y, cardW, 6.5, '#f5f5f5');
+  line(p, LX, y + 6.5, LX + cardW, y + 6.5, '#e0e0e0', 0.2);
 
-  // Subtotal
-  pdf.text('Subtotal', summaryLabelX, y);
-  pdf.setTextColor(darkGray);
-  pdf.text(formatCurrency(order.subtotal), summaryValueX, y, { align: 'right' });
-  y += 6;
+  p.setFont('helvetica', 'bold'); p.setFontSize(6); tc(p, '#777777');
+  p.text('SOLD BY', LX + 3, y + 4.5);
 
-  // Shipping
-  pdf.setTextColor(mediumGray);
-  pdf.text('Shipping', summaryLabelX, y);
+  let s = y + 12;
+  p.setFont('helvetica', 'bold'); p.setFontSize(8.5); tc(p, '#1a1a1a');
+  p.text('GrizzlyWear', LX + 3, s);
+  p.setFont('helvetica', 'normal'); p.setFontSize(7); tc(p, '#555555');
+  s += 4.5; p.text('Maharashtra, India', LX + 3, s);
+  s += 4; p.text('GSTIN: ' + GST_NO, LX + 3, s);
+  s += 4; p.text('support@grizzlywear.in', LX + 3, s);
+  s += 4; p.text('www.grizzlywear.in', LX + 3, s);
+
+  // Customer
+  stroke(p, RX, y, cardW, cardH, '#e0e0e0', 0.2);
+  fill(p, RX, y, cardW, 6.5, '#f5f5f5');
+  line(p, RX, y + 6.5, RX + cardW, y + 6.5, '#e0e0e0', 0.2);
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(6); tc(p, '#777777');
+  p.text('BILL TO / SHIP TO', RX + 3, y + 4.5);
+
+  let c = y + 12;
+  const cn = order.customerName || order.deliveryAddress?.name || 'Customer';
+  p.setFont('helvetica', 'bold'); p.setFontSize(8.5); tc(p, '#1a1a1a');
+  p.text(clip(cn, 28), RX + 3, c);
+
+  p.setFont('helvetica', 'normal'); p.setFontSize(7); tc(p, '#555555');
+  const addr = order.deliveryAddress;
+  const aLines: string[] = [];
+  const a1 = addr?.line1 || addr?.address || '';
+  if (a1) aLines.push(clip(a1, 36));
+  if (addr?.line2) aLines.push(clip(addr.line2, 36));
+  const cityLine = [addr?.city, addr?.state].filter(Boolean).join(', ');
+  if (cityLine) aLines.push(cityLine + (addr?.pincode ? ' - ' + addr.pincode : ''));
+  const ph2 = order.customerPhone || addr?.phone || '';
+  if (ph2) aLines.push('Ph: ' + ph2);
+  if (order.customerEmail) aLines.push(clip(order.customerEmail, 36));
+
+  aLines.forEach(l => { c += 4.2; p.text(l, RX + 3, c); });
+
+  y += cardH + 5;
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  ITEMS TABLE with Tax columns
+  // ════════════════════════════════════════════════════════════════════════
+
+  // Column layout — carefully calculated to fit within margins
+  // Total width = CW (182mm)
+  // Columns: # (8) | Description (50) | HSN (18) | Size (14) | Qty (12) | Rate (22) | Tax% (14) | Tax Amt (22) | Amount (22)
+  const T = M; // table left
+  const TW = CW; // table width
+  const TR = RE; // table right
+
+  // Absolute X positions for each column start
+  const colSr   = T;          // 0
+  const colName = T + 8;      // 8
+  const colHsn  = T + 58;     // 58
+  const colSize = T + 76;     // 76
+  const colQty  = T + 90;     // 90
+  const colRate = T + 102;    // 102
+  const colTaxP = T + 124;    // 124
+  const colTaxA = T + 138;    // 138
+  const colAmt  = TR;         // right-aligned
+
+  // Table header
+  const thH = 7;
+  fill(p, T, y, TW, thH, '#1a1a1a');
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(5.5); tc(p, '#ffffff');
+  const thy = y + 4.8;
+  p.text('#', colSr + 2, thy);
+  p.text('DESCRIPTION', colName, thy);
+  p.text('HSN', colHsn, thy);
+  p.text('SIZE', colSize, thy);
+  p.text('QTY', colQty, thy);
+  p.text('RATE', colRate, thy);
+  p.text('TAX %', colTaxP, thy);
+  p.text('TAX AMT', colTaxA, thy);
+  textR(p, 'AMOUNT', colAmt - 2, thy);
+
+  y += thH;
+
+  // Table rows
+  const rH = 8;
+
+  order.items.forEach((item, i) => {
+    const lineTotal = item.price * item.quantity;
+    // Calculate tax: price is inclusive of GST
+    const taxableValue = lineTotal / (1 + GST_RATE / 100);
+    const taxAmt = lineTotal - taxableValue;
+
+    // Alternate row bg
+    if (i % 2 === 0) fill(p, T, y, TW, rH, '#fafafa');
+
+    // Row bottom line
+    line(p, T, y + rH, TR, y + rH, '#eeeeee', 0.12);
+
+    const ry = y + 5.5;
+
+    // Serial
+    p.setFont('helvetica', 'normal'); p.setFontSize(6.5); tc(p, '#aaaaaa');
+    p.text(String(i + 1), colSr + 2, ry);
+
+    // Name
+    p.setFont('helvetica', 'bold'); p.setFontSize(7); tc(p, '#222222');
+    p.text(clip(item.name, 26), colName, ry);
+
+    // HSN (generic apparel code)
+    p.setFont('helvetica', 'normal'); p.setFontSize(6.5); tc(p, '#888888');
+    p.text('6109', colHsn, ry);
+
+    // Size
+    tc(p, '#555555');
+    p.text(item.size || '-', colSize, ry);
+
+    // Qty
+    tc(p, '#333333');
+    p.text(String(item.quantity), colQty, ry);
+
+    // Rate (taxable per unit)
+    p.setFontSize(6.5); tc(p, '#555555');
+    textR(p, rs(item.price / (1 + GST_RATE / 100)), colRate + 18, ry);
+
+    // Tax %
+    tc(p, '#888888');
+    p.text(GST_RATE + '%', colTaxP, ry);
+
+    // Tax amount
+    tc(p, '#555555');
+    textR(p, rs(taxAmt), colTaxA + 18, ry);
+
+    // Total amount
+    p.setFont('helvetica', 'bold'); p.setFontSize(7); tc(p, '#111111');
+    textR(p, rs(lineTotal), colAmt - 2, ry);
+
+    y += rH;
+  });
+
+  // Table bottom
+  line(p, T, y, TR, y, '#1a1a1a', 0.5);
+
+  // Totals row
+  y += 0.5;
+  fill(p, T, y, TW, 7, '#f5f5f5');
+  stroke(p, T, y, TW, 7, '#e0e0e0', 0.2);
+
+  const totalQty = order.items.reduce((s, i) => s + i.quantity, 0);
+  const allTaxable = order.subtotal / (1 + GST_RATE / 100);
+  const allTax = order.subtotal - allTaxable;
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(6.5); tc(p, '#666666');
+  p.text('Total', colSr + 2, y + 5);
+  p.text(totalQty + ' item' + (totalQty !== 1 ? 's' : ''), colQty - 2, y + 5);
+
+  tc(p, '#555555');
+  textR(p, rs(allTaxable), colRate + 18, y + 5);
+
+  textR(p, rs(allTax), colTaxA + 18, y + 5);
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(7); tc(p, '#111111');
+  textR(p, rs(order.subtotal), colAmt - 2, y + 5);
+
+  y += 11;
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  TAX BREAKUP + AMOUNT SUMMARY — Two columns
+  // ════════════════════════════════════════════════════════════════════════
+
+  const leftBoxW = cardW;
+  const rightBoxW = cardW;
+  const rightBoxX = RX;
+
+  // ── LEFT: Tax Breakup ──
+  p.setFont('helvetica', 'bold'); p.setFontSize(6.5); tc(p, '#999999');
+  p.text('TAX BREAKUP', LX, y);
+  y += 3;
+
+  const taxBoxH = 28;
+  stroke(p, LX, y, leftBoxW, taxBoxH, '#e0e0e0', 0.2);
+
+  // Tax table header
+  fill(p, LX, y, leftBoxW, 6, '#f5f5f5');
+  line(p, LX, y + 6, LX + leftBoxW, y + 6, '#e0e0e0', 0.2);
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(5.5); tc(p, '#888888');
+  const txL = LX + 3;
+  const txC = LX + leftBoxW * 0.35;
+  const txR2 = LX + leftBoxW * 0.65;
+  const txR3 = LX + leftBoxW - 3;
+  p.text('TAX TYPE', txL, y + 4.2);
+  p.text('RATE', txC, y + 4.2);
+  p.text('TAXABLE AMT', txR2, y + 4.2);
+  textR(p, 'TAX AMT', txR3, y + 4.2);
+
+  // CGST row
+  let txy = y + 11;
+  p.setFont('helvetica', 'normal'); p.setFontSize(6.5); tc(p, '#444444');
+  p.text('CGST', txL, txy);
+  p.text((GST_RATE/2) + '%', txC, txy);
+  p.text(rs(allTaxable), txR2, txy);
+  textR(p, rs(allTax / 2), txR3, txy);
+
+  // SGST row
+  txy += 5;
+  line(p, LX + 2, txy - 2.5, LX + leftBoxW - 2, txy - 2.5, '#f0f0f0', 0.1);
+  p.text('SGST', txL, txy);
+  p.text((GST_RATE/2) + '%', txC, txy);
+  p.text(rs(allTaxable), txR2, txy);
+  textR(p, rs(allTax / 2), txR3, txy);
+
+  // Total tax
+  txy += 5;
+  line(p, LX + 2, txy - 2.5, LX + leftBoxW - 2, txy - 2.5, '#dddddd', 0.3);
+  p.setFont('helvetica', 'bold'); tc(p, '#222222');
+  p.text('Total Tax', txL, txy);
+  p.text(GST_RATE + '%', txC, txy);
+  textR(p, rs(allTax), txR3, txy);
+
+  // ── RIGHT: Amount Summary ──
+  p.setFont('helvetica', 'bold'); p.setFontSize(6.5); tc(p, '#999999');
+  p.text('AMOUNT SUMMARY', rightBoxX, y - 3);
+
+  const sumH = taxBoxH;
+  stroke(p, rightBoxX, y, rightBoxW, sumH, '#e0e0e0', 0.2);
+
+  const sL = rightBoxX + 4;
+  const sR = rightBoxX + rightBoxW - 4;
+  let sY2 = y + 6;
+
+  p.setFont('helvetica', 'normal'); p.setFontSize(7); tc(p, '#666666');
+  p.text('Taxable Amount', sL, sY2);
+  tc(p, '#333333'); textR(p, rs(allTaxable), sR, sY2);
+
+  sY2 += 5.5;
+  tc(p, '#666666'); p.text('Total Tax (GST ' + GST_RATE + '%)', sL, sY2);
+  tc(p, '#333333'); textR(p, rs(allTax), sR, sY2);
+
+  sY2 += 5.5;
+  tc(p, '#666666'); p.text('Shipping', sL, sY2);
   if (order.shipping === 0) {
-    pdf.setTextColor(accentGreen);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('FREE', summaryValueX, y, { align: 'right' });
-    pdf.setFont('helvetica', 'normal');
+    p.setFont('helvetica', 'bold'); tc(p, '#16a34a'); textR(p, 'FREE', sR, sY2);
+    p.setFont('helvetica', 'normal');
   } else {
-    pdf.setTextColor(darkGray);
-    pdf.text(formatCurrency(order.shipping), summaryValueX, y, { align: 'right' });
+    tc(p, '#333333'); textR(p, rs(order.shipping), sR, sY2);
   }
-  y += 6;
 
-  // Discount (if any)
   if (order.discount > 0) {
-    pdf.setTextColor(mediumGray);
-    pdf.text('Discount', summaryLabelX, y);
-    pdf.setTextColor(accentGreen);
-    pdf.text(`-${formatCurrency(order.discount)}`, summaryValueX, y, { align: 'right' });
-    y += 6;
+    sY2 += 5.5;
+    tc(p, '#666666'); p.text('Discount', sL, sY2);
+    p.setFont('helvetica', 'bold'); tc(p, '#16a34a'); textR(p, '- ' + rs(order.discount), sR, sY2);
+    p.setFont('helvetica', 'normal');
   }
 
-  // Total line
-  y += 2;
-  pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(0.5);
-  pdf.line(summaryLabelX - 5, y, pageWidth - margin, y);
+  // Grand Total bar
+  sY2 += 6;
+  const gtY = sY2 - 3;
+  fill(p, rightBoxX, gtY, rightBoxW, 8, '#1a1a1a');
+
+  p.setFont('helvetica', 'bold'); p.setFontSize(6.5); tc(p, '#cccccc');
+  p.text('GRAND TOTAL', sL, sY2 + 2);
+  p.setFontSize(8); tc(p, '#ffffff');
+  textR(p, 'Rs. ' + rs(order.total), sR, sY2 + 2);
+
+  y += taxBoxH + 5;
+
+  // Amount in words
+  p.setFont('helvetica', 'italic'); p.setFontSize(6.5); tc(p, '#888888');
+  p.text('Amount in words:  ' + toWords(order.total), M, y);
+
   y += 7;
 
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.setTextColor(black);
-  pdf.text('TOTAL', summaryLabelX, y);
-  pdf.text(formatCurrency(order.total), summaryValueX, y, { align: 'right' });
-  y += 4;
+  // ════════════════════════════════════════════════════════════════════════
+  //  PAYMENT ROW
+  // ════════════════════════════════════════════════════════════════════════
 
-  // Total in box
-  pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(0.5);
-  pdf.line(summaryLabelX - 5, y, pageWidth - margin, y);
+  line(p, M, y, RE, y, '#eeeeee');
+  y += 1;
+
+  fill(p, M, y, CW, 6, '#f5f5f5');
+  line(p, M, y + 6, RE, y + 6, '#e0e0e0', 0.2);
+  p.setFont('helvetica', 'bold'); p.setFontSize(6); tc(p, '#777777');
+  p.text('PAYMENT DETAILS', M + 3, y + 4.2);
+  y += 9;
+
+  const pW = CW / 4;
+  const pLabels = ['Payment Method', 'Payment Status', 'Invoice Amount', 'Order Date'];
+  const methodStr = order.paymentMethod === 'cod' ? 'Cash on Delivery'
+    : order.paymentMethod === 'razorpay' ? 'Online (Razorpay)'
+    : order.paymentMethod;
+  const statusStr = order.paymentStatus === 'paid' ? 'PAID'
+    : (order.paymentStatus === 'pending' || order.paymentStatus === 'unpaid') ? 'PENDING'
+    : order.paymentStatus === 'refunded' ? 'REFUNDED'
+    : order.paymentStatus.toUpperCase();
+  const pValues = [methodStr, statusStr, 'Rs. ' + rs(order.total), fmtDate(order.createdAt)];
+
+  pLabels.forEach((lbl, i) => {
+    const px = M + 3 + i * pW;
+    p.setFont('helvetica', 'normal'); p.setFontSize(5.5); tc(p, '#999999');
+    p.text(lbl.toUpperCase(), px, y);
+
+    p.setFont('helvetica', 'bold'); p.setFontSize(7.5);
+    if (i === 1) {
+      tc(p, statusStr === 'PAID' ? '#16a34a' : statusStr === 'PENDING' ? '#d97706' : '#2563eb');
+    } else {
+      tc(p, '#222222');
+    }
+    p.text(clip(pValues[i], 20), px, y + 5);
+  });
 
   y += 12;
+  line(p, M, y, RE, y, '#eeeeee');
 
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  PAYMENT INFO                                                           ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
+  // ════════════════════════════════════════════════════════════════════════
+  //  TERMS
+  // ════════════════════════════════════════════════════════════════════════
 
-  // Payment info box
-  pdf.setFillColor(245, 245, 245);
-  pdf.rect(margin, y - 2, contentWidth, 22, 'F');
-  pdf.setDrawColor(lineColor);
-  pdf.setLineWidth(0.2);
-  pdf.rect(margin, y - 2, contentWidth, 22, 'S');
-
-  const payColLeft = margin + 8;
-  const payColRight = margin + contentWidth / 2 + 8;
-
-  y += 5;
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7);
-  pdf.setTextColor(lightGray);
-  pdf.text('PAYMENT METHOD', payColLeft, y);
-  pdf.text('PAYMENT STATUS', payColRight, y);
-
-  y += 5;
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9);
-  pdf.setTextColor(darkGray);
-
-  const payMethodStr = order.paymentMethod === 'cod' || order.paymentMethod === 'Cash on Delivery'
-    ? 'Cash on Delivery'
-    : order.paymentMethod === 'razorpay' || order.paymentMethod === 'online'
-    ? 'Online Payment'
-    : order.paymentMethod;
-  pdf.text(payMethodStr, payColLeft, y);
-
-  const payStatusStr = order.paymentStatus === 'paid'
-    ? 'Paid'
-    : order.paymentStatus === 'pending' || order.paymentStatus === 'unpaid'
-    ? 'Pending'
-    : order.paymentStatus === 'refunded'
-    ? 'Refunded'
-    : order.paymentStatus;
-  
-  // Color the status
-  if (payStatusStr === 'Paid') {
-    pdf.setTextColor(accentGreen);
-  } else if (payStatusStr === 'Pending') {
-    pdf.setTextColor('#ca8a04'); // yellow-600
-  } else {
-    pdf.setTextColor(mediumGray);
+  if (y < 252) {
+    y += 4;
+    p.setFont('helvetica', 'bold'); p.setFontSize(6); tc(p, '#bbbbbb');
+    p.text('TERMS & CONDITIONS', M, y);
+    y += 4;
+    p.setFont('helvetica', 'normal'); p.setFontSize(6); tc(p, '#bbbbbb');
+    const terms = [
+      '1. Goods can be returned/exchanged within 7 days of delivery as per our return policy.',
+      '2. For queries regarding this invoice, contact support@grizzlywear.in.',
+      '3. This is a computer-generated invoice and does not require a signature.',
+      '4. E&OE -- Errors and Omissions Excepted.',
+    ];
+    terms.forEach(t => { p.text(t, M, y); y += 3.8; });
   }
-  pdf.text(payStatusStr, payColRight, y);
 
-  y += 14;
+  // ════════════════════════════════════════════════════════════════════════
+  //  FOOTER
+  // ════════════════════════════════════════════════════════════════════════
 
-  // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║  FOOTER — Thank you message                                             ║
-  // ╚═══════════════════════════════════════════════════════════════════════════╝
+  const fY = 281;
+  line(p, M, fY, RE, fY, '#1a1a1a', 0.5);
+  line(p, M, fY + 0.7, RE, fY + 0.7, '#1a1a1a', 0.12);
 
-  // Divider
-  pdf.setDrawColor(lineColor);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 10;
+  p.setFont('helvetica', 'bold'); p.setFontSize(7.5); tc(p, '#333333');
+  p.text('Thank you for shopping with GrizzlyWear!', PW / 2, fY + 5.5, { align: 'center' });
 
-  // Thank you text
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(10);
-  pdf.setTextColor(black);
-  pdf.text('Thank you for shopping with GrizzlyWear!', pageWidth / 2, y, { align: 'center' });
+  p.setFont('helvetica', 'normal'); p.setFontSize(6); tc(p, '#aaaaaa');
+  p.text('support@grizzlywear.in  |  www.grizzlywear.in  |  GSTIN: ' + GST_NO, PW / 2, fY + 9.5, { align: 'center' });
 
-  y += 6;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(lightGray);
-  pdf.text('If you have any questions about your order, reach out to support@grizzlywear.in', pageWidth / 2, y, { align: 'center' });
+  fill(p, 0, 295.5, PW, 1.5, '#1a1a1a');
 
-  y += 5;
-  pdf.text('www.grizzlywear.in', pageWidth / 2, y, { align: 'center' });
-
-  // Bottom accent line
-  pdf.setFillColor(0, 0, 0);
-  pdf.rect(0, 294, pageWidth, 3, 'F');
-
-  // Computer-generated notice
-  pdf.setFontSize(6);
-  pdf.setTextColor(lightGray);
-  pdf.text('This is a computer-generated invoice and does not require a physical signature.', pageWidth / 2, 290, { align: 'center' });
-
-  // Return as data URI string
-  return pdf.output('datauristring');
+  return p.output('datauristring');
 }
 
-// ─── SAVE INVOICE TO FIRESTORE ────────────────────────────────────────────────
+// ─── FIRESTORE & DOWNLOAD ─────────────────────────────────────────────────────
 
-/**
- * Generates the invoice PDF and saves the base64 data to the Firestore order document.
- * Uses updateDoc with merge fields — does NOT overwrite existing order data.
- * Fails silently to avoid blocking the order success flow.
- *
- * @param firestoreDocId The Firestore document ID (NOT the human-readable orderId)
- * @param order The order data for invoice generation
- * @returns The base64 data URI string, or null if generation failed
- */
 export async function generateAndSaveInvoice(
   firestoreDocId: string,
   order: InvoiceOrderData
 ): Promise<string | null> {
   try {
     const pdfBase64 = generateInvoicePDF(order);
-
-    // Save to Firestore — only add invoiceData and invoiceGeneratedAt
     await updateDoc(doc(db, 'orders', firestoreDocId), {
       invoiceData: pdfBase64,
       invoiceGeneratedAt: serverTimestamp(),
     });
-
     return pdfBase64;
   } catch (err) {
     console.error('[InvoiceService] Failed to generate/save invoice:', err);
@@ -449,11 +542,6 @@ export async function generateAndSaveInvoice(
   }
 }
 
-// ─── DOWNLOAD INVOICE ─────────────────────────────────────────────────────────
-
-/**
- * Downloads a PDF from a base64 data URI string.
- */
 export function downloadInvoice(pdfBase64: string, orderId: string): void {
   const link = document.createElement('a');
   link.href = pdfBase64;
@@ -463,10 +551,6 @@ export function downloadInvoice(pdfBase64: string, orderId: string): void {
   document.body.removeChild(link);
 }
 
-/**
- * Regenerates an invoice from order data and downloads it.
- * Used for older orders that don't have invoiceData saved.
- */
 export function regenerateAndDownloadInvoice(order: InvoiceOrderData): void {
   const pdfBase64 = generateInvoicePDF(order);
   downloadInvoice(pdfBase64, order.orderId);
