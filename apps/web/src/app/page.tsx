@@ -52,8 +52,17 @@ export default function HomePage() {
 
   // Real-time Firestore data
   const [allProducts, setAllProducts] = useState<FirestoreProduct[]>([]);
-  const newArrivals = allProducts.filter((p: FirestoreProduct) => p.isNew).slice(0, 4);
-  const featuredEdit = allProducts.filter((p: FirestoreProduct) => p.isFeatured).slice(0, 4);
+  const visibleProducts = allProducts;
+  const flaggedNewArrivals = visibleProducts.filter((p: FirestoreProduct) => p.isNew);
+  const newArrivals = (flaggedNewArrivals.length > 0 ? flaggedNewArrivals : visibleProducts).slice(0, 4);
+
+  const flaggedFeatured = visibleProducts.filter((p: FirestoreProduct) => p.isFeatured);
+  const featuredFallbackPool = visibleProducts.filter((p: FirestoreProduct) => !newArrivals.some((n) => n.id === p.id));
+  const featuredEdit = (
+    flaggedFeatured.length > 0
+      ? flaggedFeatured
+      : (featuredFallbackPool.length > 0 ? featuredFallbackPool : visibleProducts)
+  ).slice(0, 4);
 
   useEffect(() => {
     const unsub = subscribeToProducts((prods) => setAllProducts(prods));
@@ -226,7 +235,7 @@ export default function HomePage() {
             {newArrivals.length === 0 ? (
               <div className="col-span-4 py-12 text-center text-gray-400 text-sm uppercase tracking-widest">No new arrivals yet</div>
             ) : newArrivals.map((p: FirestoreProduct) => (
-              <Link href={`/shop/${p.slug}`} key={p.id} className="product-card group cursor-pointer block opacity-0">
+              <Link href={`/shop/${p.slug}`} key={p.id} className="product-card group cursor-pointer block">
                 <div className="aspect-[3/4] bg-gray-100 mb-4 overflow-hidden relative">
                   {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover transition-opacity duration-500 group-hover:opacity-0" sizes="(max-width: 768px) 100vw, 25vw" />}
                   {p.images[1] && <Image src={p.images[1] || p.images[0]} alt={`${p.name} Alt`} fill className="object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 scale-105 group-hover:scale-100 ease-out" sizes="(max-width: 768px) 100vw, 25vw" />}
