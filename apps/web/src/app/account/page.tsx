@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck, MessageSquare, ArrowLeft, Send, Shield, CheckCircle2, XCircle, ChevronDown, CreditCard, ShoppingBag } from 'lucide-react';
+import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck, MessageSquare, ArrowLeft, Send, Shield, CheckCircle2, XCircle, ChevronDown, CreditCard, ShoppingBag, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
@@ -27,6 +27,13 @@ import {
   type FirestoreAddress,
 } from '@/lib/firestore/userService';
 import { cn } from '@/lib/utils';
+import {
+  downloadInvoice,
+  regenerateAndDownloadInvoice,
+  type InvoiceOrderData,
+} from '@/lib/invoiceService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type TabType = 'profile' | 'orders' | 'wishlist' | 'addresses' | 'support';
 
@@ -136,6 +143,7 @@ export default function AccountPage() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [cancelDialogOrderId, setCancelDialogOrderId] = useState<string | null>(null);
+  const [invoiceDownloadingId, setInvoiceDownloadingId] = useState<string | null>(null);
 
   // ── Tickets state ──
   const [tickets, setTickets] = useState<FirestoreTicket[]>([]);
@@ -381,6 +389,60 @@ export default function AccountPage() {
       toast.error(err.message || 'Failed to cancel order');
     } finally {
       setCancellingOrderId(null);
+    }
+  };
+
+  // ── Download Invoice ──
+  const handleDownloadInvoice = async (order: FirestoreOrder) => {
+    setInvoiceDownloadingId(order.id);
+    try {
+      // Check if invoiceData exists in Firestore
+      const orderDocRef = doc(db, 'orders', order.id);
+      const orderSnap = await getDoc(orderDocRef);
+      const orderData = orderSnap.data();
+
+      if (orderData?.invoiceData) {
+        // Directly download saved invoice
+        downloadInvoice(orderData.invoiceData, order.orderId);
+        toast.success('Invoice downloaded!');
+      } else {
+        // Regenerate invoice on the fly from order data
+        const addr = order.shippingAddress;
+        const invoiceOrder: InvoiceOrderData = {
+          orderId: order.orderId,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          deliveryAddress: {
+            name: addr.name,
+            address: addr.address,
+            city: addr.city,
+            state: addr.state,
+            pincode: addr.pincode,
+            phone: addr.phone,
+          },
+          items: order.items.map((item) => ({
+            name: item.name,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          subtotal: order.subtotal,
+          shipping: order.shipping,
+          discount: order.discount,
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+          paymentStatus: order.paymentStatus,
+          createdAt: order.createdAt,
+        };
+        regenerateAndDownloadInvoice(invoiceOrder);
+        toast.success('Invoice generated and downloaded!');
+      }
+    } catch (err) {
+      console.error('Invoice download failed:', err);
+      toast.error('Could not generate invoice. Please try again.');
+    } finally {
+      setInvoiceDownloadingId(null);
     }
   };
 
@@ -852,6 +914,17 @@ export default function AccountPage() {
                                 >
                                   <Truck size={14} /> Track Order
                                 </Link>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadInvoice(order); }}
+                                  disabled={invoiceDownloadingId === order.id}
+                                  className="inline-flex items-center gap-2 border border-black text-black px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                >
+                                  {invoiceDownloadingId === order.id ? (
+                                    <><Loader2 size={14} className="animate-spin" /> Downloading...</>
+                                  ) : (
+                                    <><Download size={14} /> Download Invoice</>
+                                  )}
+                                </button>
                                 {(order.status === 'pending' || order.status === 'confirmed') && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setCancelDialogOrderId(order.id); }}
