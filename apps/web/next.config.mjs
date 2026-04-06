@@ -32,7 +32,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node'],
+    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node', '@xenova/transformers'],
   },
 };
 

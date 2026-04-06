@@ -73,10 +73,6 @@ class DeleteProductRequest(BaseModel):
     productId: str
 
 
-class VisualSearchRequest(BaseModel):
-    imageUrl: str
-
-
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
 
@@ -239,47 +235,9 @@ async def outfit_match():
 
 
 @app.post("/ai/visual-search")
-async def visual_search(req: VisualSearchRequest):
-    """Visual search via CLIP + Pinecone."""
-    if not req.imageUrl.strip():
-        raise HTTPException(status_code=400, detail="imageUrl cannot be empty.")
-
-    try:
-        from pinecone_service import query_vectors
-        from visual_search_service import get_image_embedding
-
-        query_vec = get_image_embedding(req.imageUrl)
-        if len(query_vec) != 512:
-            raise ValueError(f"Invalid query embedding dimension: {len(query_vec)}")
-
-        results = query_vectors(query_vec, top_k=5)
-
-        matches = []
-        for r in results:
-            score = float(r.get("score", 0) or 0)
-            if score <= 0.15:
-                continue
-
-            meta = r.get("metadata") or {}
-            matches.append({
-                "productId": meta.get("productId", r.get("id", "")),
-                "slug": meta.get("slug", ""),
-                "name": meta.get("name", ""),
-                "price": meta.get("price", 0),
-                "comparePrice": meta.get("comparePrice") or None,
-                "category": meta.get("category", ""),
-                "imageUrl": meta.get("imageUrl", ""),
-                "inStock": meta.get("inStock", True),
-                "score": round(score * 100),
-            })
-
-        return {"matches": matches}
-
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err)) from err
-    except Exception as err:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Visual search failed.") from err
+async def visual_search():
+    """Visual search via CLIP + Pinecone — to be implemented"""
+    return {"message": "Visual search coming soon!"}
 
 
 @app.post("/ai/describe-product")
