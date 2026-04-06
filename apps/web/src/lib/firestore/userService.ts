@@ -236,3 +236,31 @@ async function unsetAllDefaults(uid: string): Promise<void> {
     );
   await Promise.all(updates);
 }
+
+import type { SizeMeasurements } from '@/lib/sizeRecommendation'
+
+export async function saveSizeMeasurements(
+  userId: string,
+  measurements: SizeMeasurements
+): Promise<void> {
+  const { doc, setDoc } = await import('firebase/firestore')
+  const { db } = await import('@/lib/firebase')
+  await setDoc(
+    doc(db, 'users', userId),
+    {
+      sizeMeasurements: measurements,
+      sizeMeasurementsUpdatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  )
+}
+
+export async function getSizeMeasurements(
+  userId: string
+): Promise<SizeMeasurements | null> {
+  const { doc, getDoc } = await import('firebase/firestore')
+  const { db } = await import('@/lib/firebase')
+  const snap = await getDoc(doc(db, 'users', userId))
+  if (!snap.exists()) return null
+  return snap.data()?.sizeMeasurements ?? null
+}

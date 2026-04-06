@@ -16,6 +16,9 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import TryOnModal from '@/components/ui/TryOnModal';
+import SizeAdvisorModal from '@/components/ui/SizeAdvisorModal';
+import { getSizeMeasurements, saveSizeMeasurements } from '@/lib/firestore/userService';
+import type { SizeMeasurements } from '@/lib/sizeRecommendation';
 
 // We need to map Firestore product to the shape the cart expects.
 // The cart was built for the old Product type; we use a compatible subset.
@@ -45,6 +48,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [sizeError, setSizeError] = useState(false);
   const [sizeStock, setSizeStock] = useState<Record<string, number>>({});
   const [tryOnOpen, setTryOnOpen] = useState(false);
+  const [sizeAdvisorOpen, setSizeAdvisorOpen] = useState(false);
+  const [savedMeasurements, setSavedMeasurements] = useState<SizeMeasurements | null>(null);
 
   // Review Form State
   const [reviewRating, setReviewRating] = useState(5);
@@ -102,6 +107,13 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     });
     return () => unsub();
   }, [product]);
+
+  useEffect(() => {
+    if (!user) return;
+    getSizeMeasurements(user.uid)
+      .then(m => { if (m) setSavedMeasurements(m); })
+      .catch(() => {});
+  }, [user]);
 
   const isWishlisted = product ? wishlistedIds.includes(product.id) : false;
 
@@ -230,6 +242,16 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
       return;
     }
     setTryOnOpen(true);
+  };
+
+  const handleSaveMeasurements = async (m: SizeMeasurements) => {
+    if (!user) return;
+    try {
+      await saveSizeMeasurements(user.uid, m);
+      setSavedMeasurements(m);
+    } catch {
+      // silently fail — size selection still works without saving
+    }
   };
 
   // Loading state
@@ -362,6 +384,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                   <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-gray-900">Select Size</h3>
                   <button onClick={() => toggleTab('sizes')} className="text-xs text-gray-500 uppercase tracking-widest hover:text-black border-b border-gray-300 hover:border-black pb-0.5 transition-colors">
                     Size Guide
+                  </button>
+                  <button
+                    onClick={() => setSizeAdvisorOpen(true)}
+                    className="text-xs text-gray-500 uppercase tracking-widest hover:text-black border-b border-gray-300 hover:border-black pb-0.5 transition-colors ml-4"
+                  >
+                    📐 Find My Size
                   </button>
                 </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
@@ -675,6 +703,18 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
         onClose={() => setTryOnOpen(false)}
         productImage={product.images[0]}
         productName={product.name}
+      />
+      <SizeAdvisorModal
+        isOpen={sizeAdvisorOpen}
+        onClose={() => setSizeAdvisorOpen(false)}
+        availableSizes={product.sizes ?? []}
+        onSizeSelect={(size) => {
+          setSelectedSize(size);
+          setSizeError(false);
+        }}
+        savedMeasurements={savedMeasurements}
+        onSaveMeasurements={handleSaveMeasurements}
+        isLoggedIn={!!user}
       />
     </div>
   );
