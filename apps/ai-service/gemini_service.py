@@ -1,27 +1,15 @@
 """
-Gemini + Vertex AI helpers for embeddings and chat generation.
+Gemini helpers for embeddings and chat generation.
 """
 
-import os
-import tempfile
-import httpx
 import google.generativeai as genai
-import vertexai
-from vertexai.vision_models import Image, MultiModalEmbeddingModel
 
 from config import (
     GEMINI_API_KEY,
     EMBEDDING_MODEL,
-    CHAT_MODEL,
-    GCP_PROJECT_ID,
-    GCP_LOCATION,
-    VERTEX_MULTIMODAL_MODEL,
-    VERTEX_EMBEDDING_DIMENSION,
 )
 
 genai.configure(api_key=GEMINI_API_KEY)
-
-_vertex_model: MultiModalEmbeddingModel | None = None
 
 
 def get_embedding(text: str) -> list[float]:
@@ -52,80 +40,6 @@ def get_query_embedding(text: str) -> list[float]:
     return embedding
 
 
-def _get_vertex_model() -> MultiModalEmbeddingModel:
-    global _vertex_model
-    if _vertex_model is not None:
-        return _vertex_model
-
-    if not GCP_PROJECT_ID:
-        raise ValueError("GCP_PROJECT_ID is required for Vertex AI multimodal embeddings")
-
-    vertexai.init(project=GCP_PROJECT_ID, location=GCP_LOCATION)
-    _vertex_model = MultiModalEmbeddingModel.from_pretrained(VERTEX_MULTIMODAL_MODEL)
-    return _vertex_model
-
-
-def get_vertex_multimodal_embedding(text: str, image_url: str = "") -> list[float]:
-    """
-    Generate a 512-dim embedding from text, optionally fused with an image.
-    """
-
-    model = _get_vertex_model()
-    tmp_path = ""
-
-    try:
-        if image_url:
-            with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-                response = client.get(image_url)
-                response.raise_for_status()
-                image_bytes = response.content
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                tmp.write(image_bytes)
-                tmp_path = tmp.name
-
-            image = Image.load_from_file(tmp_path)
-            embeddings = model.get_embeddings(
-                image=image,
-                contextual_text=text,
-                dimension=VERTEX_EMBEDDING_DIMENSION,
-            )
-        else:
-            embeddings = model.get_embeddings(
-                contextual_text=text,
-                dimension=VERTEX_EMBEDDING_DIMENSION,
-            )
-
-        vectors: list[list[float]] = []
-        image_vec = getattr(embeddings, "image_embedding", None)
-        text_vec = getattr(embeddings, "text_embedding", None)
-
-        if image_vec:
-            vectors.append(list(image_vec))
-        if text_vec:
-            vectors.append(list(text_vec))
-
-        if not vectors:
-            raise ValueError("Vertex returned no embeddings")
-
-        if len(vectors) == 1:
-            merged = vectors[0]
-        else:
-            # Merge image + text vectors to keep a single cross-modal representation.
-            merged = [sum(values) / len(values) for values in zip(*vectors)]
-
-        if len(merged) != VERTEX_EMBEDDING_DIMENSION:
-            raise ValueError(
-                f"Vertex embedding dimension mismatch: {len(merged)} != {VERTEX_EMBEDDING_DIMENSION}"
-            )
-
-        return merged
-
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
 def chat_with_context(user_message: str, product_context: str) -> str:
     """
     Send the user message + retrieved product context to Gemini and
@@ -146,21 +60,23 @@ def chat_with_context(user_message: str, product_context: str) -> str:
         f"{product_context}\n"
     )
 
-    model = genai.GenerativeModel(CHAT_MODEL, system_instruction=system_prompt)
-
     generation_config = {
         "temperature": 1,
         "topP": 0.95,
         "topK": 64,
         "maxOutputTokens": 65536,
-        "thinking": True,
     }
 
-    try:
-        response = model.generate_content(user_message, generation_config=generation_config)
-    except Exception:
-        # Fallback for SDK variants that don't support `thinking`.
-        generation_config.pop("thinking", None)
-        response = model.generate_content(user_message, generation_config=generation_config)
+    last_error: Exception | None = None
+    for model_name in ("gemini-2.5-flash", "gemini-1.5-flash"):
+        try:
+            model = genai.GenerativeModel(model_name, system_instruction=system_prompt)
+            response = model.generate_content(user_message, generation_config=generation_config)
+            if response.text:
+                return response.text
+        except Exception as err:
+            last_error = err
 
-    return response.text
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Gemini returned an empty response")

@@ -38,6 +38,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    query_vec: list[float]
     history: list[dict] | None = None
 
 
@@ -93,14 +94,14 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     try:
-        from gemini_service import get_vertex_multimodal_embedding, chat_with_context
+        from gemini_service import chat_with_context
         from pinecone_service import query_vectors
 
-        # 1. Embed the user query
-        query_vec = get_vertex_multimodal_embedding(text=req.message)
+        if len(req.query_vec) != 512:
+            raise HTTPException(status_code=400, detail="query_vec must be a 512-dim embedding.")
 
         # 2. Search Pinecone for relevant products
-        results = query_vectors(query_vec, top_k=5)
+        results = query_vectors(req.query_vec, top_k=5)
 
         # 3. Build context string from retrieved products
         if results:
@@ -151,7 +152,7 @@ async def embed_product(req: EmbedProductRequest):
     """
     try:
         from ingest_products import product_to_text, build_pinecone_product_metadata
-        from gemini_service import get_embedding, get_vertex_multimodal_embedding
+        from gemini_service import get_embedding
         from pinecone_service import upsert_vectors
 
         product_dict = req.model_dump()
@@ -160,33 +161,9 @@ async def embed_product(req: EmbedProductRequest):
         text = product_to_text(product_dict)
         metadata = build_pinecone_product_metadata(product_dict)
 
-        gemini_embedding = None
-        vertex_embedding = None
-        pipeline_errors: dict[str, str] = {}
-
-        # Keep legacy embedding path in place, but don't let it crash Vertex flow.
-        try:
-            gemini_embedding = get_embedding(text)
-            if len(gemini_embedding) != 512:
-                raise ValueError(f"Gemini embedding dimension mismatch: {len(gemini_embedding)}")
-        except Exception as err:
-            pipeline_errors["gemini"] = str(err)
-
-        # Vertex multimodal embedding uses image + text and forces dimension=512.
-        try:
-            image_url = metadata.get("imageUrl", "")
-            vertex_embedding = get_vertex_multimodal_embedding(text=text, image_url=image_url)
-            if len(vertex_embedding) != 512:
-                raise ValueError(f"Vertex embedding dimension mismatch: {len(vertex_embedding)}")
-        except Exception as err:
-            pipeline_errors["vertex"] = str(err)
-
-        if vertex_embedding is None and gemini_embedding is None:
-            raise RuntimeError(f"All embedding pipelines failed: {pipeline_errors}")
-
-        # Prefer multimodal vector when available; fallback to legacy embedding.
-        selected_embedding = vertex_embedding if vertex_embedding is not None else gemini_embedding
-        selected_source = "vertex" if vertex_embedding is not None else "gemini"
+        selected_embedding = get_embedding(text)
+        if len(selected_embedding) != 512:
+            raise ValueError(f"Gemini embedding dimension mismatch: {len(selected_embedding)}")
 
         upsert_vectors([{
             "id": req.productId,
@@ -197,12 +174,7 @@ async def embed_product(req: EmbedProductRequest):
         return {
             "success": True,
             "message": f"Product '{req.name}' embedded.",
-            "embeddingSource": selected_source,
-            "pipelines": {
-                "vertex": vertex_embedding is not None,
-                "gemini": gemini_embedding is not None,
-            },
-            "pipelineErrors": pipeline_errors,
+            "embeddingSource": "gemini",
         }
 
     except Exception as e:

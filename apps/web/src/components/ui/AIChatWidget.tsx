@@ -15,6 +15,34 @@ interface ChatMessage {
 /* ───────────── AI Service URL ───────────── */
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000';
 
+type TextExtractor = (input: string, options?: Record<string, unknown>) => Promise<{ data: ArrayLike<number> }>;
+let textExtractorPromise: Promise<TextExtractor> | null = null;
+
+async function getTextExtractor(): Promise<TextExtractor> {
+  if (!textExtractorPromise) {
+    textExtractorPromise = (async () => {
+      const { pipeline } = await import('@xenova/transformers');
+      return pipeline('feature-extraction', 'Xenova/clip-vit-base-patch32') as Promise<TextExtractor>;
+    })();
+  }
+  return textExtractorPromise;
+}
+
+async function getTextQueryEmbedding(text: string): Promise<number[]> {
+  const extractor = await getTextExtractor();
+  const output = await extractor(text, {
+    pooling: 'mean',
+    normalize: true,
+  });
+
+  const vector = Array.from(output.data, (value) => Number(value));
+  if (vector.length !== 512) {
+    throw new Error(`Invalid embedding dimension: ${vector.length}`);
+  }
+
+  return vector;
+}
+
 /* ───────────── markdown renderer ───────────── */
 function renderMarkdown(text: string): string {
   return text
@@ -119,10 +147,12 @@ export function GrizzChat() {
   /** Call the RAG-powered AI service */
   const getAIResponse = useCallback(async (text: string): Promise<{ reply: string; shouldEscalate?: boolean }> => {
     try {
+      const queryVec = await getTextQueryEmbedding(text);
+
       const res = await fetch(`${AI_SERVICE_URL}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, query_vec: queryVec }),
       });
 
       if (!res.ok) {
