@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck, MessageSquare, ArrowLeft, Send, Shield } from 'lucide-react';
+import { LogOut, Package, Heart, MapPin, User, ChevronRight, Plus, X, Pencil, Trash2, Loader2, Truck, MessageSquare, ArrowLeft, Send, Shield, CheckCircle2, XCircle, ChevronDown, CreditCard, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/store/authStore';
@@ -97,9 +97,19 @@ export default function AccountPage() {
   const { wishlistedIds, toggleFavorite: toggleWishlist } = useWishlistStore();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
-    if (tab === 'support') return 'support';
+    const validTabs: TabType[] = ['profile', 'orders', 'wishlist', 'addresses', 'support'];
+    if (tab && validTabs.includes(tab as TabType)) return tab as TabType;
     return 'profile';
   });
+
+  // Sync tab with URL ?tab= on navigation
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const validTabs: TabType[] = ['profile', 'orders', 'wishlist', 'addresses', 'support'];
+    if (tab && validTabs.includes(tab as TabType)) {
+      setActiveTab(tab as TabType);
+    }
+  }, [searchParams]);
 
   // ── Profile form state ──
   const [formFullName, setFormFullName] = useState('');
@@ -124,6 +134,8 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [cancelDialogOrderId, setCancelDialogOrderId] = useState<string | null>(null);
 
   // ── Tickets state ──
   const [tickets, setTickets] = useState<FirestoreTicket[]>([]);
@@ -239,17 +251,17 @@ export default function AccountPage() {
                 country: data.shippingAddress?.country ?? 'India',
                 phone: data.shippingAddress?.phone ?? '',
               },
-              paymentDetails: data.paymentDetails ?? null,
-              razorpayPaymentId: data.razorpayPaymentId ?? data.payment?.razorpayPaymentId ?? null,
-              razorpayOrderId: data.razorpayOrderId ?? data.payment?.razorpayOrderId ?? null,
+              paymentDetails: data.paymentDetails || null,
+              razorpayPaymentId: data.razorpayPaymentId || data.payment?.razorpayPaymentId || null,
+              razorpayOrderId: data.razorpayOrderId || data.payment?.razorpayOrderId || null,
               createdAt: data.createdAt,
               updatedAt: data.updatedAt,
             } as FirestoreOrder;
           });
           // Sort client-side (newest first)
           fetchedOrders.sort((a, b) => {
-            const ta = (a.createdAt as any)?.toMillis?.() ?? (a.createdAt as any)?.seconds * 1000 ?? 0;
-            const tb = (b.createdAt as any)?.toMillis?.() ?? (b.createdAt as any)?.seconds * 1000 ?? 0;
+            const ta = (a.createdAt as any)?.toMillis?.() || ((a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : 0);
+            const tb = (b.createdAt as any)?.toMillis?.() || ((b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : 0);
             return tb - ta;
           });
           setOrders(fetchedOrders);
@@ -360,12 +372,11 @@ export default function AccountPage() {
   };
 
   const handleCancelOrder = async (orderId: string) => {
-    const confirmed = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
-    if (!confirmed) return;
     setCancellingOrderId(orderId);
     try {
       await cancelOrder(orderId);
       toast.success('Order cancelled successfully');
+      setCancelDialogOrderId(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to cancel order');
     } finally {
@@ -586,7 +597,7 @@ export default function AccountPage() {
             {/* ── ORDERS TAB ── */}
             {activeTab === 'orders' && (
               <div className="animate-in fade-in duration-300">
-                <h2 className="text-lg font-medium mb-6 uppercase tracking-widest border-b border-gray-100 pb-4">Order History</h2>
+                <h2 className="text-lg font-medium mb-6 uppercase tracking-widest border-b border-gray-100 pb-4">My Orders</h2>
                 
                 {ordersLoading ? (
                   <div className="space-y-6">
@@ -618,7 +629,7 @@ export default function AccountPage() {
                           ? (order.createdAt as any).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
                           : new Date(order.createdAt as any).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
                         : '—';
-                      const itemsSummary = order.items.length === 1
+                      const shortSummary = order.items.length === 1
                         ? order.items[0].name
                         : `${order.items[0]?.name || 'Item'} + ${order.items.length - 1} more`;
                       const statusColor =
@@ -627,12 +638,33 @@ export default function AccountPage() {
                         order.status === 'confirmed' || (order.status as any) === 'processing' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                         order.status === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' :
                         'bg-yellow-100 text-yellow-700 border-yellow-200';
+                      const isExpanded = expandedOrderId === order.id;
+                      const isCancelled = order.status === 'cancelled';
+
+                      // Timeline steps
+                      const TIMELINE_STEPS = [
+                        { key: 'pending', label: 'Order Placed', icon: Package },
+                        { key: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
+                        { key: 'shipped', label: 'Shipped', icon: Truck },
+                        { key: 'delivered', label: 'Delivered', icon: CheckCircle2 },
+                      ];
+                      const statusIndex = TIMELINE_STEPS.findIndex(s => s.key === order.status);
+                      const completedIdx = order.status === 'pending' ? 0 : statusIndex >= 0 ? statusIndex : -1;
+
                       return (
-                      <div key={order.id} className="border border-gray-200">
-                        <div className="bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200">
-                          <div className="flex gap-8">
+                      <div key={order.id} className="border border-gray-200 transition-shadow hover:shadow-sm">
+                        {/* Order Card Header — clickable to expand/collapse */}
+                        <button
+                          onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                          className="w-full text-left bg-[#F9F9F9] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex gap-6 sm:gap-8 flex-wrap">
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order Placed</p>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Order ID</p>
+                              <p className="text-sm font-mono font-medium">{order.orderId}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Date</p>
                               <p className="text-sm font-medium">{orderDate}</p>
                             </div>
                             <div>
@@ -641,72 +673,198 @@ export default function AccountPage() {
                             </div>
                             <div className="hidden sm:block">
                               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Items</p>
-                              <p className="text-sm font-medium truncate max-w-[180px]">{itemsSummary}</p>
+                              <p className="text-sm font-medium truncate max-w-[180px]">{shortSummary}</p>
                             </div>
                           </div>
-                          <div className="text-left sm:text-right flex flex-col items-start sm:items-end gap-1">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Order # {order.orderId}</p>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={cn('inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border', statusColor)}>
-                                {order.status}
-                              </span>
-                              <span className={cn(
-                                'inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border',
-                                order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' :
-                                order.paymentStatus === 'refunded' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                order.paymentStatus === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' :
-                                'bg-yellow-100 text-yellow-700 border-yellow-200'
-                              )}>
-                                {order.paymentStatus}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-6">
-                          <div className="space-y-6">
-                            {order.items.map((item, idx) => (
-                              <div key={`${order.id}-item-${idx}`} className="flex gap-4">
-                                <div className="relative w-20 h-24 bg-gray-100 flex-shrink-0 border border-gray-200">
-                                  {item.image
-                                    ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="80px" />
-                                    : <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">IMG</div>
-                                  }
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <Link href={`/shop/${item.productId}`} className="text-sm font-medium hover:underline underline-offset-4 line-clamp-1">{item.name}</Link>
-                                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} | Qty: {item.quantity}</p>
-                                  <p className="text-sm font-medium mt-2">₹{item.price.toLocaleString('en-IN')}</p>
-                                </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col items-start sm:items-end gap-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={cn('inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border', statusColor)}>
+                                  {order.status}
+                                </span>
+                                <span className={cn(
+                                  'inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border',
+                                  order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-200' :
+                                  order.paymentStatus === 'refunded' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                  order.paymentStatus === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' :
+                                  'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                )}>
+                                  {order.paymentStatus}
+                                </span>
                               </div>
-                            ))}
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                {order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod === 'razorpay' ? 'Paid Online' : order.paymentMethod.toUpperCase()}
+                              </span>
+                            </div>
+                            <ChevronDown size={16} className={cn('text-gray-400 transition-transform duration-300', isExpanded && 'rotate-180')} />
                           </div>
-                          <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <Link
-                                href={`/track?orderId=${encodeURIComponent(order.orderId)}`}
-                                className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
-                              >
-                                <Truck size={14} /> Track Order
-                              </Link>
-                              {(order.status === 'pending' || order.status === 'confirmed') && (
-                                <button
-                                  onClick={() => handleCancelOrder(order.id)}
-                                  disabled={cancellingOrderId === order.id}
-                                  className="inline-flex items-center gap-2 border border-red-400 text-red-600 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-red-50 transition-colors disabled:opacity-50"
-                                >
-                                  {cancellingOrderId === order.id ? (
-                                    <><Loader2 size={14} className="animate-spin" /> Cancelling...</>
-                                  ) : (
-                                    <><X size={14} /> Cancel Order</>
-                                  )}
-                                </button>
+                        </button>
+
+                        {/* Expanded Order Detail */}
+                        {isExpanded && (
+                          <div className="p-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {/* Items List */}
+                            <div className="mb-6">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2">
+                                <ShoppingBag size={14} /> Items ({order.items.length})
+                              </h4>
+                              <div className="space-y-4">
+                                {order.items.map((item, idx) => (
+                                  <div key={`${order.id}-item-${idx}`} className="flex gap-4">
+                                    <div className="relative w-20 h-24 bg-gray-100 flex-shrink-0 border border-gray-200">
+                                      {item.image
+                                        ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="80px" />
+                                        : <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">IMG</div>
+                                      }
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <Link href={`/shop/${item.productId}`} className="text-sm font-medium hover:underline underline-offset-4 line-clamp-1">{item.name}</Link>
+                                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Size: {item.size} | Qty: {item.quantity}</p>
+                                      <p className="text-sm font-medium mt-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Order Timeline */}
+                            <div className="mb-6 p-5 bg-[#F9F9F9] border border-gray-100">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-5">Order Timeline</h4>
+                              {isCancelled ? (
+                                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-100">
+                                  <XCircle size={20} className="text-red-500 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-red-600">Order Cancelled</p>
+                                    <p className="text-[10px] text-red-500 mt-0.5">This order has been cancelled.</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="relative flex items-center justify-between">
+                                  {/* Progress line */}
+                                  <div className="absolute top-4 left-0 right-0 h-px bg-gray-200" />
+                                  <div
+                                    className="absolute top-4 left-0 h-px bg-black transition-all duration-500"
+                                    style={{ width: `${completedIdx >= 0 ? (completedIdx / (TIMELINE_STEPS.length - 1)) * 100 : 0}%` }}
+                                  />
+                                  {TIMELINE_STEPS.map((step, idx) => {
+                                    const StepIcon = step.icon;
+                                    const isCompleted = idx <= completedIdx;
+                                    const isCurrent = idx === completedIdx;
+                                    return (
+                                      <div key={step.key} className="relative flex flex-col items-center z-10">
+                                        <div className={cn(
+                                          'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors',
+                                          isCompleted
+                                            ? isCurrent ? 'bg-black border-black text-white' : 'bg-black border-black text-white'
+                                            : 'bg-white border-gray-300 text-gray-300'
+                                        )}>
+                                          <StepIcon size={14} />
+                                        </div>
+                                        <span className={cn(
+                                          'text-[9px] font-bold uppercase tracking-widest mt-2 text-center whitespace-nowrap',
+                                          isCompleted ? 'text-black' : 'text-gray-400'
+                                        )}>
+                                          {step.label}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               )}
                             </div>
-                            <Link href={`/orders/confirmation/${order.orderId}`} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black hover:underline underline-offset-4">
-                              View Details
-                            </Link>
+
+                            {/* Delivery Address & Payment Details side-by-side */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                              {/* Delivery Address */}
+                              <div className="p-5 border border-gray-100">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
+                                  <MapPin size={14} /> Delivery Address
+                                </h4>
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <p className="font-medium text-black">{order.shippingAddress.name}</p>
+                                  <p>{order.shippingAddress.address}</p>
+                                  <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p>
+                                  <p>{order.shippingAddress.country}</p>
+                                  {order.shippingAddress.phone && <p className="pt-1">Phone: {order.shippingAddress.phone}</p>}
+                                </div>
+                              </div>
+
+                              {/* Payment Details */}
+                              <div className="p-5 border border-gray-100">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
+                                  <CreditCard size={14} /> Payment Details
+                                </h4>
+                                <div className="text-sm text-gray-600 space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">Method</span>
+                                    <span className="font-medium uppercase text-xs tracking-widest">
+                                      {order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod === 'razorpay' ? 'Online' : order.paymentMethod}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">Status</span>
+                                    <span className={cn('font-medium uppercase text-xs tracking-widest',
+                                      order.paymentStatus === 'paid' ? 'text-green-600' :
+                                      order.paymentStatus === 'refunded' ? 'text-blue-600' :
+                                      order.paymentStatus === 'cancelled' ? 'text-red-600' :
+                                      'text-yellow-600'
+                                    )}>
+                                      {order.paymentStatus}
+                                    </span>
+                                  </div>
+                                  {order.subtotal > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Subtotal</span>
+                                      <span>₹{order.subtotal.toLocaleString('en-IN')}</span>
+                                    </div>
+                                  )}
+                                  {order.shipping > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Shipping</span>
+                                      <span>₹{order.shipping.toLocaleString('en-IN')}</span>
+                                    </div>
+                                  )}
+                                  {order.discount > 0 && (
+                                    <div className="flex justify-between text-green-600">
+                                      <span>Discount</span>
+                                      <span>−₹{order.discount.toLocaleString('en-IN')}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between border-t border-gray-100 pt-2 font-bold">
+                                    <span className="uppercase text-xs tracking-widest">Total</span>
+                                    <span>₹{order.total.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  {order.razorpayPaymentId && (
+                                    <div className="pt-1">
+                                      <p className="text-[10px] text-gray-400 font-mono">TXN: {order.razorpayPaymentId}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <Link
+                                  href={`/track?orderId=${encodeURIComponent(order.orderId)}`}
+                                  className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors"
+                                >
+                                  <Truck size={14} /> Track Order
+                                </Link>
+                                {(order.status === 'pending' || order.status === 'confirmed') && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setCancelDialogOrderId(order.id); }}
+                                    disabled={cancellingOrderId === order.id}
+                                    className="inline-flex items-center gap-2 border border-red-400 text-red-600 px-6 py-3 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  >
+                                    <X size={14} /> Cancel Order
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                       );
                     })}
@@ -1082,6 +1240,57 @@ export default function AccountPage() {
           </div>
         </div>
       )}
+
+      {/* ── Cancel Order Confirmation Dialog ── */}
+      {cancelDialogOrderId && (() => {
+        const orderToCancel = orders.find(o => o.id === cancelDialogOrderId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setCancelDialogOrderId(null)} />
+            <div className="relative bg-white w-full max-w-[420px] p-8 animate-in fade-in zoom-in-95 duration-200">
+              <button onClick={() => setCancelDialogOrderId(null)} className="absolute top-4 right-4 text-gray-400 hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-5">
+                  <XCircle size={28} className="text-red-500" />
+                </div>
+                <h3 className="text-lg font-medium uppercase tracking-widest mb-2">Cancel Order?</h3>
+                <p className="text-sm text-gray-500 mb-1">
+                  Are you sure you want to cancel order
+                </p>
+                <p className="text-sm font-mono font-bold mb-4">
+                  {orderToCancel?.orderId || ''}
+                </p>
+                <p className="text-xs text-gray-400 mb-8">
+                  This action cannot be undone. Any online payment will be refunded.
+                </p>
+
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setCancelDialogOrderId(null)}
+                    className="flex-1 border border-gray-200 px-4 py-3 text-xs font-bold uppercase tracking-[0.15em] hover:border-black transition-colors"
+                  >
+                    Keep Order
+                  </button>
+                  <button
+                    onClick={() => handleCancelOrder(cancelDialogOrderId)}
+                    disabled={cancellingOrderId === cancelDialogOrderId}
+                    className="flex-1 bg-red-600 text-white px-4 py-3 text-xs font-bold uppercase tracking-[0.15em] hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {cancellingOrderId === cancelDialogOrderId ? (
+                      <><Loader2 size={14} className="animate-spin" /> Cancelling...</>
+                    ) : (
+                      'Cancel Order'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

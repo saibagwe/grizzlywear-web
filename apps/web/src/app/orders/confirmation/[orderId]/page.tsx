@@ -161,7 +161,7 @@ export default function OrderConfirmationPage() {
         <h1 className="text-2xl font-light tracking-tight mb-4 uppercase">Order Placed</h1>
         <p className="text-gray-500 mb-8">Your order was placed successfully, but we could not load the details right now.</p>
         <div className="flex justify-center gap-4">
-          <Link href="/account/orders" className="border border-black px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors">
+          <Link href="/account?tab=orders" className="border border-black px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors">
             View My Orders
           </Link>
           <Link href="/shop" className="bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">
