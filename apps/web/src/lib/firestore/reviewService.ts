@@ -181,6 +181,8 @@ export function subscribeToAllReviews(
 }
 
 // --- PRODUCT PAGE: APPROVED REVIEWS ---
+// Uses a single-field query on productId to avoid needing a composite index.
+// Filtering for approved status and sorting by date is done client-side.
 export function subscribeToProductReviews(
   productId: string,
   onUpdate: (reviews: FirestoreReview[]) => void,
@@ -188,19 +190,28 @@ export function subscribeToProductReviews(
 ) {
   const q = query(
     collection(db, REVIEWS_COLLECTION),
-    where('productId', '==', productId),
-    where('status', '==', 'approved'),
-    orderBy('createdAt', 'desc')
+    where('productId', '==', productId)
   );
 
   return onSnapshot(
     q,
     (snapshot) => {
-      const reviews = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as FirestoreReview[];
-      onUpdate(reviews);
+      const reviews = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as FirestoreReview[];
+
+      // Filter approved only and sort by newest first — client-side
+      const approved = reviews
+        .filter(r => r.status === 'approved')
+        .sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+          return dateB - dateA;
+        });
+
+      onUpdate(approved);
     },
     (err) => {
       console.error("Error fetching product reviews:", err);

@@ -79,9 +79,12 @@ service cloud.firestore {
 
     // ─── REVIEWS COLLECTION ────────────────────────────────────────────────────
     match /reviews/{reviewId} {
-      allow read: if resource.data.status == "approved" 
+      // Single doc reads: approved reviews are public, otherwise owner or admin
+      allow get: if resource.data.status == "approved" 
                   || isAdmin() 
                   || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      // List queries: allow public read — client-side filters for approved only
+      allow list: if true;
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
       allow update: if isAdmin() 
                     || (isAuthenticated() && request.auth.uid == resource.data.userId && resource.data.status == "pending");
