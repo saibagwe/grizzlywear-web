@@ -1,1 +1,1 @@
-girzzlywear website 2.0
+girzzlywear website 2.7
