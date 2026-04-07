@@ -38,6 +38,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    query_vec: list[float] | None = None
     history: list[dict] | None = None
 
 
@@ -96,7 +97,10 @@ async def chat(req: ChatRequest):
         from gemini_service import get_query_embedding, chat_with_context
         from pinecone_service import query_vectors
 
-        query_vec = get_query_embedding(req.message)
+        query_vec = req.query_vec if req.query_vec and len(req.query_vec) == 512 else None
+        if query_vec is None:
+            query_vec = get_query_embedding(req.message)
+
         if len(query_vec) != 512:
             raise HTTPException(status_code=500, detail="Failed to generate valid query embedding.")
 

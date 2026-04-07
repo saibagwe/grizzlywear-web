@@ -63,13 +63,18 @@ def chat_with_context(user_message: str, product_context: str) -> str:
 
     generation_config = {
         "temperature": 1,
-        "topP": 0.95,
-        "topK": 64,
-        "maxOutputTokens": 65536,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 65536,
     }
 
     model = genai.GenerativeModel(CHAT_MODEL, system_instruction=system_prompt)
-    response = model.generate_content(user_message, generation_config=generation_config)
+    try:
+        response = model.generate_content(user_message, generation_config=generation_config)
+    except Exception:
+        # Fallback for SDK variants with stricter/older GenerationConfig schemas.
+        response = model.generate_content(user_message, generation_config={"temperature": 1})
+
     if response.text:
         return response.text
     raise RuntimeError("Gemini returned an empty response")
