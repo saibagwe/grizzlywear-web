@@ -38,7 +38,6 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
-    query_vec: list[float]
     history: list[dict] | None = None
 
 
@@ -94,14 +93,15 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     try:
-        from gemini_service import chat_with_context
+        from gemini_service import get_query_embedding, chat_with_context
         from pinecone_service import query_vectors
 
-        if len(req.query_vec) != 512:
-            raise HTTPException(status_code=400, detail="query_vec must be a 512-dim embedding.")
+        query_vec = get_query_embedding(req.message)
+        if len(query_vec) != 512:
+            raise HTTPException(status_code=500, detail="Failed to generate valid query embedding.")
 
         # 2. Search Pinecone for relevant products
-        results = query_vectors(req.query_vec, top_k=5)
+        results = query_vectors(query_vec, top_k=5)
 
         # 3. Build context string from retrieved products
         if results:

@@ -15,64 +15,6 @@ interface ChatMessage {
 /* ───────────── AI Service URL ───────────── */
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000';
 
-const CLIP_MODEL_ID = 'Xenova/clip-vit-base-patch32';
-
-type ClipTextRuntime = {
-  tokenizer: (input: string | string[], options?: Record<string, unknown>) => Record<string, unknown>;
-  model: (inputs: Record<string, unknown>) => Promise<{ text_embeds?: { data?: ArrayLike<number> } | ArrayLike<number> }>;
-};
-
-let clipTextRuntimePromise: Promise<ClipTextRuntime> | null = null;
-
-async function getClipTextRuntime(): Promise<ClipTextRuntime> {
-  if (!clipTextRuntimePromise) {
-    clipTextRuntimePromise = (async () => {
-      const { AutoTokenizer, CLIPTextModelWithProjection } = await import('@xenova/transformers');
-
-      const [tokenizer, model] = await Promise.all([
-        AutoTokenizer.from_pretrained(CLIP_MODEL_ID),
-        CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL_ID),
-      ]);
-
-      return { tokenizer, model };
-    })();
-  }
-
-  return clipTextRuntimePromise;
-}
-
-async function getTextQueryEmbedding(text: string): Promise<number[]> {
-  const { tokenizer, model } = await getClipTextRuntime();
-  const inputs = tokenizer(text, {
-    padding: true,
-    truncation: true,
-    max_length: 77,
-  });
-
-  const output = await model(inputs);
-  const raw = output.text_embeds;
-  const rawData = (raw && typeof raw === 'object' && 'data' in raw && raw.data)
-    ? raw.data
-    : (raw as ArrayLike<number> | undefined);
-
-  if (!rawData) {
-    throw new Error('Missing text_embeds from CLIP text model output');
-  }
-
-  const vector = Array.from(rawData, (value) => Number(value));
-  if (vector.length !== 512) {
-    throw new Error(`Invalid embedding dimension: ${vector.length}`);
-  }
-
-  // Keep scale stable before Pinecone query by enforcing L2 normalization.
-  const norm = Math.hypot(...vector);
-  if (!Number.isFinite(norm) || norm === 0) {
-    throw new Error('Generated an invalid zero-norm text embedding');
-  }
-
-  return vector.map((v) => v / norm);
-}
-
 /* ───────────── markdown renderer ───────────── */
 function renderMarkdown(text: string): string {
   return text
@@ -177,12 +119,10 @@ export function GrizzChat() {
   /** Call the RAG-powered AI service */
   const getAIResponse = useCallback(async (text: string): Promise<{ reply: string; shouldEscalate?: boolean }> => {
     try {
-      const queryVec = await getTextQueryEmbedding(text);
-
       const res = await fetch(`${AI_SERVICE_URL}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, query_vec: queryVec }),
+        body: JSON.stringify({ message: text }),
       });
 
       if (!res.ok) {

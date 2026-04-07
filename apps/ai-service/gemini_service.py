@@ -7,6 +7,7 @@ import google.generativeai as genai
 from config import (
     GEMINI_API_KEY,
     EMBEDDING_MODEL,
+    CHAT_MODEL,
 )
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -67,16 +68,8 @@ def chat_with_context(user_message: str, product_context: str) -> str:
         "maxOutputTokens": 65536,
     }
 
-    last_error: Exception | None = None
-    for model_name in ("gemini-2.5-flash", "gemini-1.5-flash"):
-        try:
-            model = genai.GenerativeModel(model_name, system_instruction=system_prompt)
-            response = model.generate_content(user_message, generation_config=generation_config)
-            if response.text:
-                return response.text
-        except Exception as err:
-            last_error = err
-
-    if last_error is not None:
-        raise last_error
+    model = genai.GenerativeModel(CHAT_MODEL, system_instruction=system_prompt)
+    response = model.generate_content(user_message, generation_config=generation_config)
+    if response.text:
+        return response.text
     raise RuntimeError("Gemini returned an empty response")
