@@ -15,7 +15,6 @@ export default function ShopPage() {
   const initialCategory = searchParams?.get('category') || 'All';
 
   const [activeCategory, setActiveCategory] = useState(
-    initialCategory === 'new-arrivals' ? 'New Arrivals' :
     initialCategory.charAt(0).toUpperCase() + initialCategory.slice(1)
   );
 
@@ -39,10 +38,8 @@ export default function ShopPage() {
   // Keep category in sync with URL changes
   useEffect(() => {
     const cat = searchParams?.get('category');
-    if (cat === 'new-arrivals') setActiveCategory('New Arrivals');
-    else if (cat === 'men') setActiveCategory('Men');
+    if (cat === 'men') setActiveCategory('Men');
     else if (cat === 'women') setActiveCategory('Women');
-    else if (cat === 'accessories') setActiveCategory('Accessories');
     else setActiveCategory('All');
   }, [searchParams]);
 
@@ -53,16 +50,13 @@ export default function ShopPage() {
   };
 
   const filteredProducts = useMemo(() => {
-    let result = [...products];
+    // Only show men/women products on the user side
+    let result = products.filter(p => p.category === 'men' || p.category === 'women');
 
-    if (activeCategory === 'New Arrivals') {
-      result = result.filter(p => p.isNew);
-    } else if (activeCategory === 'Men') {
+    if (activeCategory === 'Men') {
       result = result.filter(p => p.category === 'men');
     } else if (activeCategory === 'Women') {
       result = result.filter(p => p.category === 'women');
-    } else if (activeCategory === 'Accessories') {
-      result = result.filter(p => p.category === 'accessories');
     }
 
     if (selectedSizes.length > 0) {
@@ -127,7 +121,7 @@ export default function ShopPage() {
               <div>
                 <h3 className="text-xs tracking-[0.2em] uppercase font-bold text-gray-900 mb-6">Category</h3>
                 <div className="flex flex-col gap-4">
-                  {['All', 'New Arrivals', 'Men', 'Women', 'Accessories'].map((cat) => (
+                  {['All', 'Men', 'Women'].map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setActiveCategory(cat)}

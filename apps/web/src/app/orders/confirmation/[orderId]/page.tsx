@@ -4,23 +4,37 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Package, Truck, ArrowRight } from 'lucide-react';
+import { Package, Truck, ArrowRight, Download, Loader2, ShoppingBag, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import gsap from 'gsap';
 
 import { useAuth } from '@/hooks/useAuth';
 import { getOrderByOrderId } from '@/lib/firestore/orderService';
+import {
+  generateAndSaveInvoice,
+  downloadInvoice,
+  regenerateAndDownloadInvoice,
+  type InvoiceOrderData,
+} from '@/lib/invoiceService';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
   const rawOrderId = params?.orderId;
   const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;
 
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, profile } = useAuth();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const checkRef = useRef<SVGSVGElement>(null);
+
+  // Invoice state
+  const [invoiceBase64, setInvoiceBase64] = useState<string | null>(null);
+  const [invoiceGenerating, setInvoiceGenerating] = useState(false);
+  const [invoiceDownloading, setInvoiceDownloading] = useState(false);
 
   useEffect(() => {
     async function loadOrder() {
@@ -39,6 +53,9 @@ export default function OrderConfirmationPage() {
             setOrder(parsed);
             setLoading(false);
             triggerConfetti();
+
+            // Generate invoice in background after order is loaded
+            generateInvoiceInBackground(parsed);
             return;
           }
         } catch {
@@ -55,6 +72,7 @@ export default function OrderConfirmationPage() {
             const addr = firestoreOrder.shippingAddress;
             const fOrder = {
               orderId: firestoreOrder.orderId,
+              firestoreDocId: firestoreOrder.id,
               items: firestoreOrder.items.map((i) => ({
                 ...i,
                 imageUrl: i.image,
@@ -77,7 +95,11 @@ export default function OrderConfirmationPage() {
                 method: firestoreOrder.paymentMethod,
                 razorpayPaymentId: firestoreOrder.razorpayPaymentId || null,
               },
+              customerName: firestoreOrder.customerName,
+              customerEmail: firestoreOrder.customerEmail,
+              customerPhone: firestoreOrder.customerPhone,
               estimatedDelivery: 'within 5-7 business days',
+              createdAt: firestoreOrder.createdAt,
             };
 
             setOrder(fOrder);
@@ -95,6 +117,102 @@ export default function OrderConfirmationPage() {
 
     loadOrder();
   }, [orderId, firebaseUser]);
+
+  // Generate invoice in background after order from sessionStorage
+  async function generateInvoiceInBackground(orderData: any) {
+    try {
+      setInvoiceGenerating(true);
+
+      // Look up the Firestore doc ID from the orderId
+      const q = query(collection(db, 'orders'), where('orderId', '==', orderData.orderId));
+      const snap = await getDocs(q);
+
+      let firestoreDocId = '';
+      let firestoreOrderData: any = null;
+      if (!snap.empty) {
+        firestoreDocId = snap.docs[0].id;
+        firestoreOrderData = snap.docs[0].data();
+      }
+
+      const invoiceOrder: InvoiceOrderData = {
+        orderId: orderData.orderId,
+        customerName: firestoreOrderData?.customerName || orderData.deliveryAddress?.name || '',
+        customerEmail: firestoreOrderData?.customerEmail || '',
+        customerPhone: firestoreOrderData?.customerPhone || orderData.deliveryAddress?.phone || '',
+        deliveryAddress: orderData.deliveryAddress || {},
+        items: (orderData.items || []).map((item: any) => ({
+          name: item.name,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        subtotal: orderData.pricing?.subtotal || 0,
+        shipping: orderData.pricing?.shippingCharge || 0,
+        discount: orderData.pricing?.discount || 0,
+        total: orderData.pricing?.total || 0,
+        paymentMethod: orderData.payment?.method || 'cod',
+        paymentStatus: orderData.payment?.method === 'razorpay' ? 'paid' : 'pending',
+        createdAt: firestoreOrderData?.createdAt || null,
+      };
+
+      if (firestoreDocId) {
+        const base64 = await generateAndSaveInvoice(firestoreDocId, invoiceOrder);
+        if (base64) {
+          setInvoiceBase64(base64);
+        }
+      } else {
+        // No Firestore doc found, just generate without saving
+        const { generateInvoicePDF } = await import('@/lib/invoiceService');
+        const base64 = generateInvoicePDF(invoiceOrder);
+        setInvoiceBase64(base64);
+      }
+    } catch (err) {
+      console.error('[Confirmation] Invoice generation failed silently:', err);
+    } finally {
+      setInvoiceGenerating(false);
+    }
+  }
+
+  // Handle download invoice click
+  const handleDownloadInvoice = async () => {
+    if (!order || !orderId) return;
+
+    setInvoiceDownloading(true);
+    try {
+      if (invoiceBase64) {
+        downloadInvoice(invoiceBase64, orderId);
+      } else {
+        // Regenerate on the fly
+        const invoiceOrder: InvoiceOrderData = {
+          orderId: order.orderId,
+          customerName: order.customerName || order.deliveryAddress?.name || '',
+          customerEmail: order.customerEmail || '',
+          customerPhone: order.customerPhone || order.deliveryAddress?.phone || '',
+          deliveryAddress: order.deliveryAddress || {},
+          items: (order.items || []).map((item: any) => ({
+            name: item.name,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          subtotal: order.pricing?.subtotal || 0,
+          shipping: order.pricing?.shippingCharge || 0,
+          discount: order.pricing?.discount || 0,
+          total: order.pricing?.total || 0,
+          paymentMethod: order.payment?.method || 'cod',
+          paymentStatus: order.payment?.method === 'razorpay' ? 'paid' : 'pending',
+          createdAt: order.createdAt || null,
+        };
+        regenerateAndDownloadInvoice(invoiceOrder);
+      }
+      toast.success('Invoice downloaded!');
+    } catch (err) {
+      console.error('Download failed:', err);
+      toast.error('Could not generate invoice. Please try again.');
+    } finally {
+      setInvoiceDownloading(false);
+    }
+  };
 
   // GSAP animation for the checkmark
   useEffect(() => {
@@ -161,7 +279,7 @@ export default function OrderConfirmationPage() {
         <h1 className="text-2xl font-light tracking-tight mb-4 uppercase">Order Placed</h1>
         <p className="text-gray-500 mb-8">Your order was placed successfully, but we could not load the details right now.</p>
         <div className="flex justify-center gap-4">
-          <Link href="/account/orders" className="border border-black px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors">
+          <Link href="/account?tab=orders" className="border border-black px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-50 transition-colors">
             View My Orders
           </Link>
           <Link href="/shop" className="bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors">
@@ -179,18 +297,21 @@ export default function OrderConfirmationPage() {
         {/* Header Success Message */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
-            <div className="relative isolate w-16 h-16 flex items-center justify-center">
-              {/* Sonar Rings */}
-              <div className="radar-ring absolute w-16 h-16 rounded-full border border-black opacity-0 -z-10 pointer-events-none" />
-              <div className="radar-ring absolute w-16 h-16 rounded-full border border-black opacity-0 -z-10 pointer-events-none" />
+            <div className="relative isolate w-20 h-20 flex items-center justify-center">
+              {/* Success green circle */}
+              <div className="absolute inset-0 bg-green-50 rounded-full" />
               
-              <svg ref={checkRef} className="relative z-10 bg-white rounded-full" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="32" cy="32" r="31" stroke="black" strokeWidth="2" />
-                <path d="M18 33L27 42L46 22" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              {/* Sonar Rings */}
+              <div className="radar-ring absolute w-20 h-20 rounded-full border border-green-400 opacity-0 -z-10 pointer-events-none" />
+              <div className="radar-ring absolute w-20 h-20 rounded-full border border-green-400 opacity-0 -z-10 pointer-events-none" />
+              
+              <svg ref={checkRef} className="relative z-10" width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="40" cy="40" r="38" stroke="#16a34a" strokeWidth="2.5" fill="#f0fdf4" />
+                <path d="M22 42L34 54L58 28" stroke="#16a34a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-light tracking-tight mb-2 uppercase">Order Confirmed</h1>
+          <h1 className="text-3xl sm:text-4xl font-light tracking-tight mb-2 uppercase">Order Placed Successfully!</h1>
           <p className="text-gray-500 uppercase tracking-widest text-xs">Thank you for shopping with Grizzlywear.</p>
         </div>
 
@@ -198,7 +319,7 @@ export default function OrderConfirmationPage() {
         <div className="bg-[#F9F9F9] border border-gray-200 p-6 md:p-8 mb-8 flex flex-col sm:flex-row justify-between gap-6">
           <div>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Order ID</p>
-            <p className="font-mono text-sm">{order.orderId}</p>
+            <p className="font-mono text-sm font-medium">{order.orderId}</p>
           </div>
           <div>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Payment Method</p>
@@ -209,7 +330,7 @@ export default function OrderConfirmationPage() {
           </div>
           <div>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Estimated Delivery</p>
-            <p className="text-sm font-medium">{order.estimatedDelivery}</p>
+            <p className="text-sm font-medium">5-7 Business Days</p>
           </div>
         </div>
 
@@ -220,11 +341,11 @@ export default function OrderConfirmationPage() {
             {order.items.map((item: any) => (
               <div key={`${item.productId}-${item.size}`} className="flex gap-4">
                 <div className="relative w-20 h-24 flex-shrink-0 bg-gray-100 border border-gray-200">
-                  <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                  <Image src={item.imageUrl || item.image} alt={item.name} fill className="object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium uppercase tracking-widest mb-1">{item.name}</p>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Size: {item.size} • Color: {item.color} • Qty: {item.quantity}</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Size: {item.size} • Qty: {item.quantity}</p>
                   <p className="text-sm font-medium">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
                 </div>
               </div>
@@ -265,7 +386,7 @@ export default function OrderConfirmationPage() {
             <h2 className="text-sm font-bold uppercase tracking-widest border-b border-gray-200 pb-4 mb-4">Delivering To</h2>
             <div className="text-sm text-gray-600 space-y-1">
               <p className="font-medium text-black">{order.deliveryAddress.name}</p>
-              <p>{order.deliveryAddress.line1}</p>
+              <p>{order.deliveryAddress.line1 || order.deliveryAddress.address}</p>
               {order.deliveryAddress.line2 && <p>{order.deliveryAddress.line2}</p>}
               <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.pincode}</p>
               <p className="pt-2">Phone: {order.deliveryAddress.phone}</p>
@@ -275,14 +396,39 @@ export default function OrderConfirmationPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 border-t border-gray-200 pt-8">
-          <button className="flex-1 border border-black hover:bg-gray-50 transition-colors px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-            <Truck size={16} /> Track Order
-          </button>
-          <Link href="/shop" className="flex-1 bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 group">
-            <Package size={16} /> Continue Shopping
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
+        <div className="border-t border-gray-200 pt-8 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={handleDownloadInvoice}
+              disabled={invoiceDownloading || invoiceGenerating}
+              className="flex-1 border-2 border-black bg-white text-black hover:bg-gray-50 transition-all px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {invoiceDownloading || invoiceGenerating ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  {invoiceGenerating ? 'Generating Invoice...' : 'Downloading...'}
+                </>
+              ) : (
+                <>
+                  <Download size={16} /> Download Invoice
+                </>
+              )}
+            </button>
+            <Link href="/shop" className="flex-1 bg-black text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.2em] hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 group">
+              <ShoppingBag size={16} /> Continue Shopping
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          {/* View in Profile link */}
+          <div className="text-center pt-2">
+            <Link
+              href="/account?tab=orders"
+              className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-gray-500 hover:text-black transition-colors underline underline-offset-4"
+            >
+              <User size={14} /> View Order in My Profile
+            </Link>
+          </div>
         </div>
 
       </div>

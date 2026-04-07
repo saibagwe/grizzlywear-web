@@ -4,7 +4,7 @@
 import { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 
-type CategoryKey = 'men' | 'women' | 'accessories' | 'new-arrivals';
+type CategoryKey = 'men' | 'women';
 
 type CategoryData = {
   image: string;
@@ -32,23 +32,6 @@ const CATEGORY_MAP: Record<CategoryKey, CategoryData> = {
     tagline: 'Effortless. Bold. Unapologetically you.',
     badge: '52 STYLES',
     subcategories: ['All', 'Crop Tops', 'Hoodies', 'Wide-Leg Pants', 'Co-ords'],
-  },
-  accessories: {
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=1600&q=80',
-    eyebrow: 'GRIZZLYWEAR / ACCESSORIES',
-    heading: 'ACCESSORIES',
-    tagline: 'The details that define you.',
-    badge: '24 PIECES',
-    subcategories: ['All', 'Caps', 'Tote Bags', 'Socks'],
-  },
-  'new-arrivals': {
-    image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=1600&q=80',
-    eyebrow: 'GRIZZLYWEAR / NEW IN',
-    heading: 'JUST DROPPED',
-    tagline: 'Fresh every Friday. First come, first served.',
-    badge: 'UPDATED THIS WEEK',
-    badgePulse: true,
-    subcategories: ['Drop 01 — Jan', 'Drop 02 — Feb', 'Drop 03 — Mar ← Current'],
   },
 };
 

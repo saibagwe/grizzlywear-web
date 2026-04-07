@@ -14,8 +14,6 @@ import { Search, ShoppingBag, User, Menu, X, Heart, LogOut, Camera } from 'lucid
 const navLinks = [
   { href: '/shop?category=men', label: 'Men' },
   { href: '/shop?category=women', label: 'Women' },
-  { href: '/shop?category=accessories', label: 'Accessories' },
-  { href: '/shop?category=new-arrivals', label: 'New Arrivals' },
 ];
 
 export default function Navbar() {
@@ -153,9 +151,7 @@ export default function Navbar() {
                         <Link href="/account" className="block px-4 py-3 text-xs tracking-widest uppercase text-white hover:bg-white hover:text-black transition-colors">
                           My Account
                         </Link>
-                        <Link href="/account/orders" className="block px-4 py-3 text-xs tracking-widest uppercase text-gray-300 hover:bg-white hover:text-black transition-colors">
-                          Orders
-                        </Link>
+
                         {isAdmin && (
                           <Link href="/admin/dashboard" className="block px-4 py-3 text-xs tracking-widest uppercase text-yellow-500 hover:bg-yellow-500 hover:text-black font-semibold transition-colors">
                             Admin Panel
@@ -213,7 +209,7 @@ export default function Navbar() {
               ) : (
                 <>
                   <Link href="/account" className="text-white hover:text-gray-300 flex items-center gap-2"><User size={16}/> My Account</Link>
-                  <Link href="/account/orders" className="text-gray-400 hover:text-white">Orders</Link>
+
                   <button onClick={() => { import('@/store/authStore').then((m) => m.useAuthStore.getState().logout()); closeAllModals(); }} className="text-red-500 text-left hover:text-red-400 mt-4">
                     Logout
                   </button>

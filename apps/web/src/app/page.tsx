@@ -417,11 +417,10 @@ export default function HomePage() {
 
       {/* ===== 3.3 CATEGORY SHOWCASE (Enhanced) ===== */}
       <section className="bg-white relative z-30">
-        <div className="grid grid-cols-1 md:grid-cols-3">
+        <div className="grid grid-cols-1 md:grid-cols-2">
           {[
             { title: 'Men', count: '48 STYLES', href: '/shop?category=men', img: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?q=80&w=1000&auto=format&fit=crop' },
             { title: 'Women', count: '42 STYLES', href: '/shop?category=women', img: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?q=80&w=1000&auto=format&fit=crop' },
-            { title: 'Accessories', count: '12 STYLES', href: '/shop?category=accessories', img: 'https://res.cloudinary.com/dstmv07tf/image/upload/v1773161780/2149366089_wr2trp.jpg' },
           ].map((cat, i) => (
             <Link
               key={cat.title}
@@ -430,7 +429,7 @@ export default function HomePage() {
               className="group relative h-[60vh] md:h-[80vh] flex flex-col justify-end p-8 sm:p-12 overflow-hidden bg-black"
             >
               <div className="absolute inset-0 w-full h-full">
-                <Image src={cat.img} alt={cat.title} fill className="cat-img object-cover opacity-70 group-hover:opacity-90 transition-opacity duration-700 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 33vw" />
+                <Image src={cat.img} alt={cat.title} fill className="cat-img object-cover opacity-70 group-hover:opacity-90 transition-opacity duration-700 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 50vw" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
               <div className="relative z-10 w-full">
