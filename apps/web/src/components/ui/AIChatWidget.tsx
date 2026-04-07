@@ -15,32 +15,62 @@ interface ChatMessage {
 /* ───────────── AI Service URL ───────────── */
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8000';
 
-type TextExtractor = (input: string, options?: Record<string, unknown>) => Promise<{ data: ArrayLike<number> }>;
-let textExtractorPromise: Promise<TextExtractor> | null = null;
+const CLIP_MODEL_ID = 'Xenova/clip-vit-base-patch32';
 
-async function getTextExtractor(): Promise<TextExtractor> {
-  if (!textExtractorPromise) {
-    textExtractorPromise = (async () => {
-      const { pipeline } = await import('@xenova/transformers');
-      return pipeline('feature-extraction', 'Xenova/clip-vit-base-patch32') as Promise<TextExtractor>;
+type ClipTextRuntime = {
+  tokenizer: (input: string | string[], options?: Record<string, unknown>) => Record<string, unknown>;
+  model: (inputs: Record<string, unknown>) => Promise<{ text_embeds?: { data?: ArrayLike<number> } | ArrayLike<number> }>;
+};
+
+let clipTextRuntimePromise: Promise<ClipTextRuntime> | null = null;
+
+async function getClipTextRuntime(): Promise<ClipTextRuntime> {
+  if (!clipTextRuntimePromise) {
+    clipTextRuntimePromise = (async () => {
+      const { AutoTokenizer, CLIPTextModelWithProjection } = await import('@xenova/transformers');
+
+      const [tokenizer, model] = await Promise.all([
+        AutoTokenizer.from_pretrained(CLIP_MODEL_ID),
+        CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL_ID),
+      ]);
+
+      return { tokenizer, model };
     })();
   }
-  return textExtractorPromise;
+
+  return clipTextRuntimePromise;
 }
 
 async function getTextQueryEmbedding(text: string): Promise<number[]> {
-  const extractor = await getTextExtractor();
-  const output = await extractor(text, {
-    pooling: 'mean',
-    normalize: true,
+  const { tokenizer, model } = await getClipTextRuntime();
+  const inputs = tokenizer(text, {
+    padding: true,
+    truncation: true,
+    max_length: 77,
   });
 
-  const vector = Array.from(output.data, (value) => Number(value));
+  const output = await model(inputs);
+  const raw = output.text_embeds;
+  const rawData = (raw && typeof raw === 'object' && 'data' in raw && raw.data)
+    ? raw.data
+    : (raw as ArrayLike<number> | undefined);
+
+  if (!rawData) {
+    throw new Error('Missing text_embeds from CLIP text model output');
+  }
+
+  const vector = Array.from(rawData, (value) => Number(value));
   if (vector.length !== 512) {
     throw new Error(`Invalid embedding dimension: ${vector.length}`);
   }
 
-  return vector;
+  // Keep scale stable before Pinecone query by enforcing L2 normalization.
+  const norm = Math.hypot(...vector);
+  if (!Number.isFinite(norm) || norm === 0) {
+    throw new Error('Generated an invalid zero-norm text embedding');
+  }
+
+  return vector.map((v) => v / norm);
 }
 
 /* ───────────── markdown renderer ───────────── */
