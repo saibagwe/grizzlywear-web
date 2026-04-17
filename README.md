@@ -75,7 +75,3 @@ Deployed on **Vercel**. Set all environment variables in the Vercel project dash
 ```bash
 pnpm build:web
 ```
-
----
-
-<p align="center">Built with ❤️ by the Grizzlywear team</p>
